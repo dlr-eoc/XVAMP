@@ -9,7 +9,7 @@ description = "X-Band Venus Atmosphere Model Permissivity (XVAMP)"
 readme = "README.md"
 authors = [{ name = "Tobias Köhne", email = "tobias.koehne@dlr.de" }]
 license = "BSD-3-Clause"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
     "numpy>=2.2",
     "pandas>=2.3",
