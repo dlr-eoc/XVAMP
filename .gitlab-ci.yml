@@ -8,7 +8,9 @@ pages:
   script:
   - mkdir -p xvamp
   - cd xvamp
-  - git clone --depth 1 https://gitlab.dlr.de/veritas/veritas-shared/xvamp.git . || git pull --depth 1
+  - git clone --depth 1 https://gitlab.dlr.de/veritas/veritas-shared/xvamp.git . || true
+  - git checkout pages
+  - git pull --depth 1
   - pip install --upgrade .[docs]
   - cd docsrc
   - make html
