@@ -1,0 +1,5 @@
+H. M. Pickett, R. L. Poynter, E. A. Cohen, M. L. Delitsky, J. C. Pearson, and H. S. P. Muller,
+"Submillimeter, Millimeter, and Microwave Spectral Line Catalog,"
+J. Quant. Spectrosc. & Rad. Transfer 60, 883-890 (1998)
+
+https://spec.jpl.nasa.gov/
