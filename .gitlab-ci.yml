@@ -12,7 +12,7 @@ before_script:
   - echo "Gitlab-runner working directory $(pwd)"
   - echo $PATH
   - echo $SHELL
-  - source /users/sarlab/tools/python/3.12.2-etad/bin/activate
+  - source /users/sarlab/tools/python/python-3.12.2-etad/bin/activate
   - which python3 ; python3 --version
   - which pip3 ; pip3 --version
   - python3 -m venv .venv
