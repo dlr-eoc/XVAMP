@@ -6,13 +6,13 @@ default:
 pages:
   stage: deploy
   script:
-  - git clone --depth 1 https://gitlab.dlr.de/veritas/veritas-shared/xvamp.git
+  - mkdir -p xvamp
   - cd xvamp
-  - pip install .[docs]
+  - git clone --depth 1 https://gitlab.dlr.de/veritas/veritas-shared/xvamp.git . || git pull --depth 1
+  - pip install --upgrade .[docs]
   - cd docsrc
   - make html
   - mv --update _build/html/* public
-  - echo "done!"
   artifacts:
     paths:
     - public
