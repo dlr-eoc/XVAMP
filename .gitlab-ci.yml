@@ -14,9 +14,9 @@ cache:
 
 before_script:
   - python --version ; pip --version  # For debugging
-  - pip install virtualenv
-  - virtualenv venv
-  - source venv/bin/activate
+  - python -m venv .venv
+  - source .venv/bin/activate
+  - which python
 
 default:
   tags:
