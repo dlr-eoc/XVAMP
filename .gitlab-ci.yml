@@ -12,7 +12,7 @@ before_script:
   - source /users/sarlab/tools/python/python-3.12.2-etad/bin/activate
   - which python ; python --version
   - which pip ; pip --version
-  - python -m venv .venv
+  - python -m venv .venv --without-pip
   - source .venv/bin/activate
   - which python ; python --version
   - which pip ; pip --version
