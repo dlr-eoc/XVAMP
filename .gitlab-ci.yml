@@ -9,11 +9,10 @@ cache:
     - .cache/pip
 
 before_script:
-  - /users/sarlab/tools/python/python-3.13.7-itp/bin/python3 --version
-  - pip --version
   - /users/sarlab/tools/python/python-3.13.7-itp/bin/python3 -m venv .venv
   - source .venv/bin/activate
-  - which python
+  - which python ; python --version
+  - which pip ; pip --version
 
 default:
   tags:
