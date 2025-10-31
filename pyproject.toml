@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools >= 80.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xvamp"
+version = "2025.10rc"
+description = "X-Band Venus Atmosphere Model Permissivity (XVAMP)"
+readme = "README.md"
+authors = [{ name = "Tobias Köhne", email = "tobias.koehne@dlr.de" }]
+license = "BSD-3-Clause"
+requires-python = ">=3.13"
+dependencies = [
+    "numpy>=2.2",
+    "pandas>=2.3",
+    "scipy>=1.15",
+    "astropy>=7.1",
+    "matplotlib>=3.10",
+    "cmcrameri>=1.9",
+    "ipython>=9.2",
+]
+
+[project.optional-dependencies]
+docs = [
+    "sphinx>=8",
+    "sphinx-autodoc-typehints",
+    "sphinx-book-theme",
+    "sphinx-design",
+    "nbsphinx",
+    "sphinxcontrib-bibtex",
+]
+
+[tool.setuptools]
+packages = ["xvamp"]
+
+[tool.setuptools.package-data]
+xvamp = ["data/*/*.md", "data/*/*.txt", "data/*/*.csv", "data/*/*.cat"]

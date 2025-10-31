@@ -1,0 +1,19 @@
+name: xvamp
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python>=3.13
+  - numpy>=2.2
+  - pandas>=2.3
+  - scipy>=1.15
+  - astropy>=7.1
+  - matplotlib>=3.10
+  - cmcrameri>=1.9
+  - ipython>=9.2
+  - sphinx>=8
+  - sphinx-autodoc-typehints
+  - sphinx-book-theme
+  - sphinx-design
+  - nbsphinx
+  - sphinxcontrib-bibtex

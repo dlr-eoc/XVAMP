@@ -1,0 +1,20 @@
+default:
+  image: python:3.13-alpine
+  tags:
+    - veritas
+
+pages:
+  stage: deploy
+  script:
+  - git clone --depth 1 https://gitlab.dlr.de/veritas/veritas-shared/xvamp.git
+  - cd xvamp
+  - pip install .[docs]
+  - cd docsrc
+  - make html
+  - mv --update _build/html/* public
+  - echo "done!"
+  artifacts:
+    paths:
+    - public
+  only:
+  - pages
