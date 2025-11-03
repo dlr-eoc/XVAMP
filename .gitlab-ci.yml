@@ -28,7 +28,7 @@ pages:
   - python3 -m pip install --upgrade .[docs]
   - cd docsrc
   - make html
-  - mv _build/html/ public
+  - mv _build/html ../public
   artifacts:
     paths:
     - public
