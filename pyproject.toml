@@ -18,6 +18,7 @@ dependencies = [
     "matplotlib>=3.10",
     "cmcrameri>=1.9",
     "ipython>=9.2",
+    "ipykernel",
 ]
 
 [project.optional-dependencies]
