@@ -836,12 +836,11 @@ class Duan2010(Model):
         use_kolste_h2so4: bool = False,
         use_marcq_ocs: bool = False,
         add_ar: bool = False,
-        extend_so2_co_downward: bool = False,
-        cutoff_so2_frequency: Quantity | None = Quantity(809.5, "GHz"),
+        cutoff_so2_frequency: Quantity["frequency"] | None = None,
         use_kolbe_ocs: bool = False,
         use_virial_approximation: bool = True,
         use_cimino_clouds: bool = True,
-        use_cimino_fitted_lookup: bool = True,
+        use_cimino_fitted_lookup: bool = False,
         min_altitude_spacing: Quantity = Quantity(1, "km"),
     ) -> None:
         """
@@ -881,12 +880,10 @@ class Duan2010(Model):
             Whether to add a constant value for Argon into the mixture.
             This has a range delay effect on the sub-micrometer scale, and an effect
             on the two-way attenuation on the tens of microdecibel scale.
-        extend_so2_co_downward
-            Whether to continue the mixing ratio downwards as a constant value
-            near the surface for SO2 and CO, or set it to zero.
         cutoff_so2_frequency
             When computing the absorption coefficient of SO2, include all spectral
             lines up to this frequency. If ``None``, use all available ones.
+            This option is only kept for development purposes.
         use_kolbe_ocs
             Whether to use the :cite:t:`kolbe1977`, Lorentzian-based approach to
             compute the absorption coefficient from OCS, or not.
@@ -905,6 +902,10 @@ class Duan2010(Model):
             Whether to estimate the complex permittivity of gaseous H2SO4 from
             lookup tables and then pre-fitted analytical extrapolation functions,
             or to numerically inter- and extrapolate.
+            This option is only kept for development purposes, since the pre-fitted
+            model is flawed. Regardless, this options only has a range delay effect
+            on the sub-micrometer scale, and an effect on the two-way attenuation
+            on the millidecibel scale.
         min_altitude_spacing
             Minimum height spacing between altitude nodes.
         """
@@ -935,7 +936,6 @@ class Duan2010(Model):
             use_kolste_h2so4=use_kolste_h2so4,
             use_marcq_ocs=use_marcq_ocs,
             add_ar=add_ar,
-            extend_so2_co_downward=extend_so2_co_downward,
         )
         # keep track of the chemical species we added
         all_species = list(mixratios.keys())
@@ -1138,10 +1138,10 @@ class Duan2010(Model):
 
     def update_pol_absorp_atmosphere(
         self,
-        cutoff_so2_frequency: Quantity | None = Quantity(809.5, "GHz"),
+        cutoff_so2_frequency: Quantity["frequency"] | None = None,
         use_kolbe_ocs: bool = False,
         use_cimino_clouds: bool = True,
-        use_cimino_fitted_lookup: bool = True,
+        use_cimino_fitted_lookup: bool = False,
     ):
         """
         Update the individual and total polarization and absorption
@@ -1154,6 +1154,7 @@ class Duan2010(Model):
         cutoff_so2_frequency
             When computing the absorption coefficient of SO2, include all spectral
             lines up to this frequency. If ``None``, use all available ones.
+            This option is only kept for development purposes.
         use_kolbe_ocs
             Whether to use the :cite:t:`kolbe1977`, Lorentzian-based approach to
             compute the absorption coefficient from OCS, or not.
@@ -1165,6 +1166,10 @@ class Duan2010(Model):
             Whether to estimate the complex permittivity of gaseous H2SO4 from
             lookup tables and then pre-fitted analytical extrapolation functions,
             or to numerically inter- and extrapolate.
+            This option is only kept for development purposes, since the pre-fitted
+            model is flawed. Regardless, this options only has a range delay effect
+            on the sub-micrometer scale, and an effect on the two-way attenuation
+            on the millidecibel scale.
 
         Notes
         -----
@@ -1377,7 +1382,6 @@ class Duan2010(Model):
         use_kolste_h2so4: bool = False,
         use_marcq_ocs: bool = False,
         add_ar: bool = False,
-        extend_so2_co_downward: bool = False,
     ) -> Tuple[dict[str, pd.DataFrame], dict[str, Callable], Unit]:
         """
         Load the compositions for the different chemical species.
@@ -1397,9 +1401,6 @@ class Duan2010(Model):
             instead of the :cite:t:`duan2010` profile.
         add_ar
             Whether to add a constant value for Argon into the mixture.
-        extend_so2_co_downward
-            Whether to continue the mixing ratio downwards as a constant value
-            near the surface for SO2 and CO, or set it to zero.
 
         Returns
         -------
@@ -1476,21 +1477,17 @@ class Duan2010(Model):
 
         # SO2
         # no options to check here
-        # (anymore, we already took care of extend_so2_co_downward)
         mixratios["SO2"] = pd.DataFrame(
             index=duan2010figures.SO2_FRACTION_NODES[:, 0],
             data={
                 "SO2": duan2010figures.get_so2_density(
-                    duan2010figures.SO2_FRACTION_NODES[:, 0],
-                    extend_so2_co_downward=extend_so2_co_downward,
+                    duan2010figures.SO2_FRACTION_NODES[:, 0]
                 )
                 .to(comp_unit)
                 .value
             },
         )
-        interpolators["SO2"] = lambda altitude: duan2010figures.get_so2_density(
-            altitude, extend_so2_co_downward=extend_so2_co_downward
-        )
+        interpolators["SO2"] = duan2010figures.get_so2_density
 
         # H2SO4
         if use_kolste_h2so4:
@@ -1519,30 +1516,16 @@ class Duan2010(Model):
             co_alt = co_alt[co_alt < 100]
             co_alt = pd.DataFrame(
                 index=co_alt,
-                data={
-                    "CO": duan2010figures.get_co_density(
-                        co_alt, extend_so2_co_downward=extend_so2_co_downward
-                    )
-                    .to(comp_unit)
-                    .value
-                },
+                data={"CO": duan2010figures.get_co_density(co_alt).to(comp_unit).value},
             )
             temp = pd.concat([co_alt, highcomps_df["CO"]], axis=0)
             mixratios["CO"] = temp
         else:
             mixratios["CO"] = pd.DataFrame(
                 index=co_alt,
-                data={
-                    "CO": duan2010figures.get_co_density(
-                        co_alt, extend_so2_co_downward=extend_so2_co_downward
-                    )
-                    .to(comp_unit)
-                    .value
-                },
+                data={"CO": duan2010figures.get_co_density(co_alt).to(comp_unit).value},
             )
-            interpolators["CO"] = lambda altitude: duan2010figures.get_co_density(
-                altitude, extend_so2_co_downward=extend_so2_co_downward
-            )
+            interpolators["CO"] = duan2010figures.get_co_density
 
         # OCS
         # NOTE: only the imaginary contribution is considered currently
@@ -1887,7 +1870,7 @@ class Duan2010(Model):
         return polarizations
 
     def evaluate_cloud_permittivity(
-        self, use_cimino_clouds: bool = True, use_cimino_fitted_lookup: bool = True
+        self, use_cimino_clouds: bool = True, use_cimino_fitted_lookup: bool = False
     ) -> Tuple[Quantity["dimensionless"], Quantity["wavenumber"]]:
         """
         Evaluate the cloud polarization and absorption given the model's
@@ -1904,6 +1887,10 @@ class Duan2010(Model):
             Whether to estimate the complex permittivity of gaseous H2SO4 from
             lookup tables and then pre-fitted analytical extrapolation functions,
             or to numerically inter- and extrapolate.
+            This option is only kept for development purposes, since the pre-fitted
+            model is flawed. Regardless, this options only has a range delay effect
+            on the sub-micrometer scale, and an effect on the two-way attenuation
+            on the millidecibel scale.
 
         Returns
         -------
@@ -1995,7 +1982,7 @@ class Duan2010(Model):
 
     def evaluate_absorptions(
         self,
-        cutoff_so2_frequency: Quantity | None = Quantity(809.5, "GHz"),
+        cutoff_so2_frequency: Quantity["frequency"] | None = None,
         use_kolbe_ocs: bool = False,
     ) -> astrotable.QTable:
         """
@@ -2006,6 +1993,7 @@ class Duan2010(Model):
         cutoff_so2_frequency
             When computing the absorption coefficient of SO2, include all spectral
             lines up to this frequency. If ``None``, use all available ones.
+            This option is only kept for development purposes.
         use_kolbe_ocs
             Whether to use the :cite:t:`kolbe1977`, Lorentzian-based approach to
             compute the absorption coefficient from OCS, or not.
@@ -2780,19 +2768,24 @@ class VariableProfiles(Duan2010):
 
     def __init__(
         self,
-        use_keating_temp_press_above100km=False,
-        use_keating_co_co2_n2_above_100km=False,
-        use_kolste_h2so4=False,
-        use_marcq_ocs=False,
-        add_ar=False,
-        extend_so2_co_downward=False,
-        cutoff_so2_frequency=Quantity(809.5, "GHz"),
-        use_kolbe_ocs=False,
-        use_virial_approximation=True,
-        use_cimino_clouds=True,
-        use_cimino_fitted_lookup=True,
-        min_altitude_spacing=Quantity(1, "km"),
+        use_keating_temp_press_above100km: bool = False,
+        use_keating_co_co2_n2_above_100km: bool = False,
+        use_kolste_h2so4: bool = False,
+        use_marcq_ocs: bool = False,
+        add_ar: bool = False,
+        cutoff_so2_frequency: Quantity["frequency"] | None = None,
+        use_kolbe_ocs: bool = False,
+        use_virial_approximation: bool = True,
+        use_cimino_clouds: bool = True,
+        use_cimino_fitted_lookup: bool = False,
+        min_altitude_spacing: Quantity = Quantity(1, "km"),
     ):
+        """
+        Warning
+        -------
+        This class is still experimental, might change or break at any time,
+        and does not have usage documentation yet.
+        """
         # save init variables for later use
         self._cutoff_so2_frequency = cutoff_so2_frequency
         self._use_kolbe_ocs = use_kolbe_ocs
@@ -2805,7 +2798,6 @@ class VariableProfiles(Duan2010):
             use_kolste_h2so4,
             use_marcq_ocs,
             add_ar,
-            extend_so2_co_downward,
             cutoff_so2_frequency,
             use_kolbe_ocs,
             use_virial_approximation,

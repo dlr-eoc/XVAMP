@@ -369,8 +369,6 @@ class Duan2010Figures(Reference):
 
     SO2_FRACTION_NODES = np.array(
         [
-            [0, 0],
-            [1, 25],
             [15, 25],
             [33, 60],
             [37, 90],
@@ -410,8 +408,6 @@ class Duan2010Figures(Reference):
 
     CO_FRACTION_NODES = np.array(
         [
-            [0, -100],
-            [1, np.log10(28)],
             [42, np.log10(28)],
             [52, np.log10(42)],
             [64, np.log10(52)],
@@ -512,10 +508,7 @@ class Duan2010Figures(Reference):
         )
 
     @staticmethod
-    def get_so2_density(
-        altitudes: NDArray[np.floating] | Quantity,
-        extend_so2_co_downward: bool = False,
-    ) -> Quantity:
+    def get_so2_density(altitudes: NDArray[np.floating] | Quantity) -> Quantity:
         """
         Computes the SO2 molar fraction as a
         linear interpolation between defined nodes.
@@ -525,25 +518,17 @@ class Duan2010Figures(Reference):
         altitudes
             Altitude values
             (if not a :class:`~astropy.units.Quantity`, must already be in [km])
-        extend_so2_co_downward
-            Whether to continue the mixing ratio downwards as a constant value
-            near the surface for SO2 and CO, or set it to zero.
 
         Returns
         -------
             SO2 molar fraction
         """
         # interpolate and pad according to settings
-        if extend_so2_co_downward:
-            so2_interpolated = interpolate_nodes(
-                cast_to_np(altitudes, "km"),
-                Duan2010Figures.SO2_FRACTION_NODES[1:, :],
-                left_constant=True,
-            )
-        else:
-            so2_interpolated = interpolate_nodes(
-                cast_to_np(altitudes, "km"), Duan2010Figures.SO2_FRACTION_NODES
-            )
+        so2_interpolated = interpolate_nodes(
+            cast_to_np(altitudes, "km"),
+            Duan2010Figures.SO2_FRACTION_NODES,
+            left_constant=True,
+        )
         # add unit and return
         return Quantity(so2_interpolated, Duan2010Figures.UNIT_MF)
 
@@ -572,10 +557,7 @@ class Duan2010Figures(Reference):
         )
 
     @staticmethod
-    def get_co_density(
-        altitudes: NDArray[np.floating] | Quantity,
-        extend_so2_co_downward: bool = False,
-    ) -> Quantity:
+    def get_co_density(altitudes: NDArray[np.floating] | Quantity) -> Quantity:
         """
         Computes the CO molar fraction as a
         log-linear interpolation between defined nodes.
@@ -585,26 +567,18 @@ class Duan2010Figures(Reference):
         altitudes
             Altitude values
             (if not a :class:`~astropy.units.Quantity`, must already be in [km])
-        extend_so2_co_downward
-            Whether to continue the mixing ratio downwards as a constant value
-            near the surface for SO2 and CO, or set it to zero.
 
         Returns
         -------
             CO molar fraction
         """
         # interpolate and pad according to settings
-        if extend_so2_co_downward:
-            co_interpolated = interpolate_nodes(
-                cast_to_np(altitudes, "km"),
-                Duan2010Figures.CO_FRACTION_NODES[1:, :],
-                log=True,
-                left_constant=True,
-            )
-        else:
-            co_interpolated = interpolate_nodes(
-                cast_to_np(altitudes, "km"), Duan2010Figures.CO_FRACTION_NODES, log=True
-            )
+        co_interpolated = interpolate_nodes(
+            cast_to_np(altitudes, "km"),
+            Duan2010Figures.CO_FRACTION_NODES,
+            log=True,
+            left_constant=True,
+        )
         # add unit and return
         return Quantity(co_interpolated, Duan2010Figures.UNIT_MF)
 

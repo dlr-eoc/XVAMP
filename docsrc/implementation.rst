@@ -144,7 +144,7 @@ However, the paper version is available as an option (``use_cimino_clouds=False`
 Polarization and absorption of OCS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-*Still needs to be writted - the reference code only includes OCS absorption,
+*Still needs to be written - the reference code only includes OCS absorption,
 whereas XVAMP and the study include both. There are also discrepancies in the
 models used (spectral line shapes and broadening coefficients), which is currently
 being finalized.*
@@ -156,7 +156,7 @@ being finalized.*
 Polarization of H2SO4
 ^^^^^^^^^^^^^^^^^^^^^
 
-*Still needs to be writted - the reference code has some flaws in the way it
+*Still needs to be written - the reference code has some flaws in the way it
 computes the H2SO4 polarization parameters. These are fixed internally, but not
 fully finalized yet.*
 
