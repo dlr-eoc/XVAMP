@@ -840,7 +840,7 @@ class Duan2010(Model):
         use_kolbe_ocs: bool = False,
         use_virial_approximation: bool = True,
         use_cimino_clouds: bool = True,
-        use_cimino_fitted_lookup: bool = True,
+        use_cimino_fitted_lookup: bool = False,
         min_altitude_spacing: Quantity = Quantity(1, "km"),
     ) -> None:
         """
@@ -883,6 +883,7 @@ class Duan2010(Model):
         cutoff_so2_frequency
             When computing the absorption coefficient of SO2, include all spectral
             lines up to this frequency. If ``None``, use all available ones.
+            This option is only kept for development purposes.
         use_kolbe_ocs
             Whether to use the :cite:t:`kolbe1977`, Lorentzian-based approach to
             compute the absorption coefficient from OCS, or not.
@@ -901,6 +902,10 @@ class Duan2010(Model):
             Whether to estimate the complex permittivity of gaseous H2SO4 from
             lookup tables and then pre-fitted analytical extrapolation functions,
             or to numerically inter- and extrapolate.
+            This option is only kept for development purposes, since the pre-fitted
+            model is flawed. Regardless, this options only has a range delay effect
+            on the sub-micrometer scale, and an effect on the two-way attenuation
+            on the millidecibel scale.
         min_altitude_spacing
             Minimum height spacing between altitude nodes.
         """
@@ -1136,7 +1141,7 @@ class Duan2010(Model):
         cutoff_so2_frequency: Quantity["frequency"] | None = None,
         use_kolbe_ocs: bool = False,
         use_cimino_clouds: bool = True,
-        use_cimino_fitted_lookup: bool = True,
+        use_cimino_fitted_lookup: bool = False,
     ):
         """
         Update the individual and total polarization and absorption
@@ -1149,6 +1154,7 @@ class Duan2010(Model):
         cutoff_so2_frequency
             When computing the absorption coefficient of SO2, include all spectral
             lines up to this frequency. If ``None``, use all available ones.
+            This option is only kept for development purposes.
         use_kolbe_ocs
             Whether to use the :cite:t:`kolbe1977`, Lorentzian-based approach to
             compute the absorption coefficient from OCS, or not.
@@ -1160,6 +1166,10 @@ class Duan2010(Model):
             Whether to estimate the complex permittivity of gaseous H2SO4 from
             lookup tables and then pre-fitted analytical extrapolation functions,
             or to numerically inter- and extrapolate.
+            This option is only kept for development purposes, since the pre-fitted
+            model is flawed. Regardless, this options only has a range delay effect
+            on the sub-micrometer scale, and an effect on the two-way attenuation
+            on the millidecibel scale.
 
         Notes
         -----
@@ -1860,7 +1870,7 @@ class Duan2010(Model):
         return polarizations
 
     def evaluate_cloud_permittivity(
-        self, use_cimino_clouds: bool = True, use_cimino_fitted_lookup: bool = True
+        self, use_cimino_clouds: bool = True, use_cimino_fitted_lookup: bool = False
     ) -> Tuple[Quantity["dimensionless"], Quantity["wavenumber"]]:
         """
         Evaluate the cloud polarization and absorption given the model's
@@ -1877,6 +1887,10 @@ class Duan2010(Model):
             Whether to estimate the complex permittivity of gaseous H2SO4 from
             lookup tables and then pre-fitted analytical extrapolation functions,
             or to numerically inter- and extrapolate.
+            This option is only kept for development purposes, since the pre-fitted
+            model is flawed. Regardless, this options only has a range delay effect
+            on the sub-micrometer scale, and an effect on the two-way attenuation
+            on the millidecibel scale.
 
         Returns
         -------
@@ -1979,6 +1993,7 @@ class Duan2010(Model):
         cutoff_so2_frequency
             When computing the absorption coefficient of SO2, include all spectral
             lines up to this frequency. If ``None``, use all available ones.
+            This option is only kept for development purposes.
         use_kolbe_ocs
             Whether to use the :cite:t:`kolbe1977`, Lorentzian-based approach to
             compute the absorption coefficient from OCS, or not.
@@ -2762,7 +2777,7 @@ class VariableProfiles(Duan2010):
         use_kolbe_ocs: bool = False,
         use_virial_approximation: bool = True,
         use_cimino_clouds: bool = True,
-        use_cimino_fitted_lookup: bool = True,
+        use_cimino_fitted_lookup: bool = False,
         min_altitude_spacing: Quantity = Quantity(1, "km"),
     ):
         # save init variables for later use
