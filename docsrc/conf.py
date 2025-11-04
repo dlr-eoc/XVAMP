@@ -33,6 +33,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.mathjax",
     "sphinx.ext.autosectionlabel",
+    "sphinx.ext.graphviz",
     "sphinx_autodoc_typehints",
     "nbsphinx",
     "sphinxcontrib.bibtex",
@@ -84,6 +85,10 @@ bibtex_reference_style = "author_year"
 html_theme = "sphinx_book_theme"
 # html_static_path = ["_static"]
 
+# for the notebooks
 nbsphinx_execute_arguments = [
     "--InlineBackend.figure_formats={'svg', 'pdf'}",
 ]
+
+# for graphs
+graphviz_output_format = "svg"

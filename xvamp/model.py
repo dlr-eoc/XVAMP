@@ -854,19 +854,33 @@ class Duan2010(Model):
             Whether to use the temperature profile from :cite:t:`keating1985`
             above 100 km, and get its matching pressure profile from the
             ideal gas law.
+            This option has no effect on the model, since the transition between
+            atmosphere- and ionosphere-dominated permittivity profiles is at 100 km,
+            and the ionosphere is modeled differently. It is only useful if one
+            wants to load these quantities for later plotting.
         use_keating_co_co2_n2_above_100km
             Whether to use the :cite:t:`keating1985` mixing ratios for
             CO, CO2, and N2 as continuation above the :cite:t:`duan2010`
             profiles (instead of continuing CO2 and N2 upwards as a constant,
             and setting CO to zero upwards of the highest value).
+            This option has no effect on the model, since the transition between
+            atmosphere- and ionosphere-dominated permittivity profiles is at 100 km,
+            and the ionosphere is modeled differently. It is only useful if one
+            wants to load these quantities for later plotting.
         use_kolste_h2so4
             Whether to use the H2SO4 profile from :cite:t:`kolodner1998`
             instead of the :cite:t:`duan2010` profile.
+            This has a range delay effect on the millimeter scale, and an effect
+            on the two-way attenuation on the centidecibel scale.
         use_marcq_ocs
             Whether to use the OCS profile from :cite:t:`marcq2006`
             instead of the :cite:t:`duan2010` profile.
+            This has a range delay effect on the sub-millimeter scale, and an effect
+            on the two-way attenuation on the millidecibel scale.
         add_ar
             Whether to add a constant value for Argon into the mixture.
+            This has a range delay effect on the sub-micrometer scale, and an effect
+            on the two-way attenuation on the tens of microdecibel scale.
         extend_so2_co_downward
             Whether to continue the mixing ratio downwards as a constant value
             near the surface for SO2 and CO, or set it to zero.
@@ -880,9 +894,13 @@ class Duan2010(Model):
             Whether to use the leading terms of the virial approximation to calculate
             the total polarization of the polar species (from Harvey & Lemmon, 2005),
             or to use the polarization relationship by :cite:t:`pitzer1983`.
+            These two approaches are numerically fully equivalent.
         use_cimino_clouds
-            Whether to use the polarization equation for the clouds in
-            :cite:t:`cimino1982`, eq. (10), or eqs. (19-20) in :cite:t:`duan2010`.
+            Whether to use the polarization and absorption equations for the clouds in
+            :cite:t:`cimino1982`, eq. (10) and (16), or sections 2.1.5 and 2.2.5
+            in :cite:t:`duan2010`.
+            See the notes on the importance of this flag at
+            :ref:`implementation:Cloud polarization and absorption`.
         use_cimino_fitted_lookup
             Whether to estimate the complex permittivity of gaseous H2SO4 from
             lookup tables and then pre-fitted analytical extrapolation functions,
@@ -1140,8 +1158,9 @@ class Duan2010(Model):
             Whether to use the :cite:t:`kolbe1977`, Lorentzian-based approach to
             compute the absorption coefficient from OCS, or not.
         use_cimino_clouds
-            Whether to use the polarization equation for the clouds in
-            :cite:t:`cimino1982`, eq. (10), or eqs. (19-20) in :cite:t:`duan2010`.
+            Whether to use the polarization and absorption equations for the clouds in
+            :cite:t:`cimino1982`, eq. (10) and (16), or sections 2.1.5 and 2.2.5
+            in :cite:t:`duan2010`.
         use_cimino_fitted_lookup
             Whether to estimate the complex permittivity of gaseous H2SO4 from
             lookup tables and then pre-fitted analytical extrapolation functions,
@@ -1878,8 +1897,9 @@ class Duan2010(Model):
         Parameters
         ----------
         use_cimino_clouds
-            Whether to use the polarization equation for the clouds in
-            :cite:t:`cimino1982`, eq. (10), or eqs. (19-20) in :cite:t:`duan2010`.
+            Whether to use the polarization and absorption equations for the clouds in
+            :cite:t:`cimino1982`, eq. (10) and (16), or sections 2.1.5 and 2.2.5
+            in :cite:t:`duan2010`.
         use_cimino_fitted_lookup
             Whether to estimate the complex permittivity of gaseous H2SO4 from
             lookup tables and then pre-fitted analytical extrapolation functions,
@@ -1919,7 +1939,7 @@ class Duan2010(Model):
                 d_core / cimino1982.D_DROPLET_CORE
                 + d_shell / cimino1982.D_DROPLET_SHELL
             ).decompose()
-            # compute complex polarization of droplets
+            # compute complex polarization of droplets using eq. (10)
             cloud_Pnu = cimino1982.get_h2so4_droplet_polarization(
                 eps_prime_r_H2SO4_H2O - 1j * eps_dprime_r_H2SO4_H2O
             )
@@ -1956,6 +1976,7 @@ class Duan2010(Model):
             else:
                 # we can use the actual definition from Cimino
                 cloud_Pnu_imag = -cloud_Pnu.imag.value
+            # eq. (16)
             cloud_absorp = Quantity(
                 0.6
                 * np.pi
