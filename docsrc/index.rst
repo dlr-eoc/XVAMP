@@ -7,6 +7,7 @@ Welcome to the online documentation of the XVAMP package.
    :titlesonly:
    :caption: User Guide
 
+   installation
    implementation
    scripts
    bibliography
