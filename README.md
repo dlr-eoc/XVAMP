@@ -72,11 +72,14 @@ not an editable install, running `pip install --upgrade .` again.
 
 ## Documentation
 
-An API documentation is hosted on Gitlab Pages.
+An API documentation is hosted on
+[Gitlab Pages](https://xvamp-c7e25b.pages.gitlab.dlr.de/)
+(only visible to users who can access this repository).
 
 ## Quick Start
 
-See [this notebook](docsrc/scripts/quickstart.ipynb).
+See notebook: [source file](docsrc/scripts/quickstart.ipynb) or [in the
+documentation](https://xvamp-c7e25b.pages.gitlab.dlr.de/scripts/quickstart.html).
 
 ## Acknowledgments
 

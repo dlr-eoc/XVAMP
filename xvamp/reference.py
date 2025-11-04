@@ -275,7 +275,8 @@ class Cimino1982(Reference):
     @staticmethod
     def get_h2so4_droplet_polarization(eps_r_shell: Quantity) -> Quantity:
         """
-        Compute the droplet polarization assuming a shell-like structure.
+        Compute the droplet polarization assuming a shell-like structure,
+        following eq. (10).
 
         Parameters
         ----------
