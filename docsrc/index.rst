@@ -16,7 +16,4 @@ Welcome to the online documentation of the XVAMP package.
    :titlesonly:
    :caption: API
 
-   constants
-   utils
-   reference
-   model
+   xvamp
