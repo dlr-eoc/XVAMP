@@ -10,10 +10,11 @@ dependencies:
   - astropy>=7.1
   - matplotlib>=3.10
   - cmcrameri>=1.9
-  - ipython>=9.2
+  - ipykernel
   - sphinx>=8
   - sphinx-autodoc-typehints
   - sphinx-book-theme
   - sphinx-design
   - nbsphinx
   - sphinxcontrib-bibtex
+  - graphviz
