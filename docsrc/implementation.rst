@@ -163,12 +163,3 @@ fully finalized yet.*
 .. note::
 
    This should have a negligible impact on the final delay or attenuation values.
-
-Variable profiles
------------------
-
-For the :class:`~xvamp.model.VariableProfiles` model, the following additional
-considerations are taken:
-
-1. The temperature profile of :class:`~xvamp.model.Duan2010` is based
-   on the 60°N profile of :cite:t:`seiff1985`.
