@@ -2780,6 +2780,12 @@ class VariableProfiles(Duan2010):
         use_cimino_fitted_lookup: bool = False,
         min_altitude_spacing: Quantity = Quantity(1, "km"),
     ):
+        """
+        Warning
+        -------
+        This class is still experimental, might change or break at any time,
+        and does not have usage documentation yet.
+        """
         # save init variables for later use
         self._cutoff_so2_frequency = cutoff_so2_frequency
         self._use_kolbe_ocs = use_kolbe_ocs
