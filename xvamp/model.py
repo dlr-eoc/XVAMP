@@ -836,7 +836,7 @@ class Duan2010(Model):
         use_kolste_h2so4: bool = False,
         use_marcq_ocs: bool = False,
         add_ar: bool = False,
-        cutoff_so2_frequency: Quantity | None = Quantity(809.5, "GHz"),
+        cutoff_so2_frequency: Quantity["frequency"] | None = None,
         use_kolbe_ocs: bool = False,
         use_virial_approximation: bool = True,
         use_cimino_clouds: bool = True,
@@ -1133,7 +1133,7 @@ class Duan2010(Model):
 
     def update_pol_absorp_atmosphere(
         self,
-        cutoff_so2_frequency: Quantity | None = Quantity(809.5, "GHz"),
+        cutoff_so2_frequency: Quantity["frequency"] | None = None,
         use_kolbe_ocs: bool = False,
         use_cimino_clouds: bool = True,
         use_cimino_fitted_lookup: bool = True,
@@ -1968,7 +1968,7 @@ class Duan2010(Model):
 
     def evaluate_absorptions(
         self,
-        cutoff_so2_frequency: Quantity | None = Quantity(809.5, "GHz"),
+        cutoff_so2_frequency: Quantity["frequency"] | None = None,
         use_kolbe_ocs: bool = False,
     ) -> astrotable.QTable:
         """
@@ -2753,17 +2753,17 @@ class VariableProfiles(Duan2010):
 
     def __init__(
         self,
-        use_keating_temp_press_above100km=False,
-        use_keating_co_co2_n2_above_100km=False,
-        use_kolste_h2so4=False,
-        use_marcq_ocs=False,
-        add_ar=False,
-        cutoff_so2_frequency=Quantity(809.5, "GHz"),
-        use_kolbe_ocs=False,
-        use_virial_approximation=True,
-        use_cimino_clouds=True,
-        use_cimino_fitted_lookup=True,
-        min_altitude_spacing=Quantity(1, "km"),
+        use_keating_temp_press_above100km: bool = False,
+        use_keating_co_co2_n2_above_100km: bool = False,
+        use_kolste_h2so4: bool = False,
+        use_marcq_ocs: bool = False,
+        add_ar: bool = False,
+        cutoff_so2_frequency: Quantity["frequency"] | None = None,
+        use_kolbe_ocs: bool = False,
+        use_virial_approximation: bool = True,
+        use_cimino_clouds: bool = True,
+        use_cimino_fitted_lookup: bool = True,
+        min_altitude_spacing: Quantity = Quantity(1, "km"),
     ):
         # save init variables for later use
         self._cutoff_so2_frequency = cutoff_so2_frequency
