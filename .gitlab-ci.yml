@@ -3,22 +3,21 @@
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
 
-# https://pip.pypa.io/en/stable/topics/caching/
-cache:
-  paths:
-    - .cache/pip
-
-before_script:
-  - . ~sarlab/tools/Modules/init/bash
-  - module source ~sarlab/tools/Modules/etc/initrc
-  - echo "Gitlab-runner working directory $(pwd)"
-  - module load python/3.12.2.el9.x86_64
-  - which python3 ; python3 --version
-  - if [ ! -d .venv ]; then python3 -m venv .venv; fi
-  - source .venv/bin/activate  
-  - which python3 ; python3 --version
-
 default:
+  # https://pip.pypa.io/en/stable/topics/caching/
+  cache:
+    paths:
+      - .cache/pip
+  # set up environment
+  before_script:
+    - . ~sarlab/tools/Modules/init/bash
+    - module source ~sarlab/tools/Modules/etc/initrc
+    - echo "Gitlab-runner working directory $(pwd)"
+    - module load python/3.12.2.el9.x86_64
+    - which python3 ; python3 --version
+    - python3 -m venv .venv
+    - source .venv/bin/activate  
+    - which python3 ; python3 --version
   tags:
     - veritas
 
@@ -32,5 +31,5 @@ pages:
   artifacts:
     paths:
     - public
-  only:
-  - pages
+  rules:
+    - if: $CI_COMMIT_BRANCH == "pages"
