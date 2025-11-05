@@ -831,6 +831,7 @@ class Duan2010(Model):
 
     def __init__(
         self,
+        use_compressible_gas: bool = True,
         use_keating_temp_press_above100km: bool = False,
         use_keating_co_co2_n2_above_100km: bool = False,
         use_kolste_h2so4: bool = False,
@@ -849,6 +850,12 @@ class Duan2010(Model):
 
         Parameters
         ----------
+        use_compressible_gas
+            Whether to use the gas compressibility factor when deriving the mass
+            density for the 0-100 km altitude range, or assume the ideal gas law.
+            This has no effect on the model, since all species quantities are
+            derived from the pressure profile, which is directly loaded from
+            :cite:t:`seiff1985` and :cit:t:`zasova2006`.
         use_keating_temp_press_above100km
             Whether to use the temperature profile from :cite:t:`keating1985`
             above 100 km, and get its matching pressure profile from the
@@ -896,7 +903,7 @@ class Duan2010(Model):
             Whether to use the polarization and absorption equations for the clouds in
             :cite:t:`cimino1982`, eq. (10) and (16), or sections 2.1.5 and 2.2.5
             in :cite:t:`duan2010`.
-            See the notes on the importance of this flag at
+            See the notes on the importance of this parameter at
             :ref:`implementation:Cloud polarization and absorption`.
         use_cimino_fitted_lookup
             Whether to estimate the complex permittivity of gaseous H2SO4 from
@@ -917,16 +924,17 @@ class Duan2010(Model):
         # part 1: physical quantities
 
         # temperature and pressure
-        # TODO: also mass density instead of from ideal gas law later
-        altitude, temperature, pressure = Duan2010.get_tp(
-            use_keating_temp_press_above100km=use_keating_temp_press_above100km
+        altitude, temperature, pressure, mass_density = Duan2010.get_tpd(
+            use_compressible_gas=use_compressible_gas,
+            use_keating_temp_press_above100km=use_keating_temp_press_above100km,
+        )
+        atpd = [altitude, temperature, pressure] + (
+            [mass_density] if use_compressible_gas else []
         )
         # join the tables as a pandas DataFrame so we can interpolate easier
-        physquant_df = astrotable.hstack([altitude, temperature, pressure]).to_pandas(
-            index="altitude"
-        )
+        physquant_df = astrotable.hstack(atpd).to_pandas(index="altitude")
         # save units
-        units |= {qt.info.name: qt.unit for qt in [altitude, temperature, pressure]}
+        units |= {qt.info.name: qt.unit for qt in atpd}
 
         # part 2: compositional profiles
 
@@ -1004,6 +1012,8 @@ class Duan2010(Model):
             for s in all_species + ["pressure", cloud_mass_density.info.name]
             if s not in intp_quants
         ]
+        if use_compressible_gas:
+            log_list.append("mass density")
         # define extrapolating behavior
         ffill_list = ["temperature", "CO2", "N2"]
         bfill_list = ["CO2", "N2", "SO2", "CO"]
@@ -1031,6 +1041,8 @@ class Duan2010(Model):
         self.altitude = bigqt[altitude.info.name]
         self.temperature = bigqt[temperature.info.name]
         self.pressure = bigqt[pressure.info.name]
+        if use_compressible_gas:
+            self.mass_density = bigqt[mass_density.info.name]
         # mixture quantities
         self.electron_density = bigqt[el_density.info.name]
         # component quantities
@@ -1042,8 +1054,8 @@ class Duan2010(Model):
         # part 6: computation of total and per-species densities
 
         self.update_densities()
-        # sets self.[mass_density,number_density,molar_density] and
-        # self.[molar_densities,mass_densities]
+        # sets self.mass_density (if not already present), self.number_density,
+        # self.molar_density, and self.[molar_densities,mass_densities]
 
         # part 7: get individual contributions to polarization and absorption
         # for each species and the clouds in the atmosphere, as well as the
@@ -1080,30 +1092,34 @@ class Duan2010(Model):
         """
         Compute the total and specific mass, number, and molar densities
         from the total pressure and temperature, and the molar fractions.
-
-        Uses the ideal gas law, even though we know from Tables 1-1 and 1-2
-        of :cite:t:`seiff1985` that there's a small variation in the
-        incompressibility.
+        If the mass density has not been set yet, it is derived from the
+        ideal gas law.
 
         Notes
         -----
         Reads: :attr:`~Model.pressure`, :attr:`~Model.temperature`,
         :attr:`~Model.molar_fractions`
 
-        Writes: :attr:`~Model.number_density`, :attr:`~Model.mass_density`,
-        :attr:`~Model.mass_densities`, :attr:`~Model.molar_density`,
-        and :attr:`~Model.molar_densities`
+        Writes: :attr:`~Model.number_density`, :attr:`~Model.mass_densities`,
+        :attr:`~Model.molar_density`, :attr:`~Model.molar_densities`, and
+        (if not already present) :attr:`~Model.mass_density`
         """
 
         # total densities
-        # mass density
-        self.mass_density = (
-            self.pressure / (Duan2010.VENUS_GAS_CONSTANT * self.temperature)
-        ).decompose()
-        # number density
-        self.number_density = (
-            self.mass_density * AVOGADRO / Duan2010.VENUS_MOLAR_MASS
-        ).decompose()
+        try:
+            # number density
+            self.number_density = (
+                self.mass_density * AVOGADRO / Duan2010.VENUS_MOLAR_MASS
+            ).decompose()
+        except AttributeError as e:  # try again if mass_density was not found
+            # mass density
+            self.mass_density = (
+                self.pressure / (Duan2010.VENUS_GAS_CONSTANT * self.temperature)
+            ).decompose()
+            # number density
+            self.number_density = (
+                self.mass_density * AVOGADRO / Duan2010.VENUS_MOLAR_MASS
+            ).decompose()
         # molar density
         self.molar_density = (
             self.pressure / (GAS_CONSTANT * self.temperature)
@@ -1267,14 +1283,25 @@ class Duan2010(Model):
         # done
 
     @staticmethod
-    def get_tp(
+    def get_tpd(
+        use_compressible_gas: bool = True,
         use_keating_temp_press_above100km: bool = False,
-    ) -> Tuple[Quantity["length"], Quantity["temperature"], Quantity["pressure"]]:
+    ) -> Tuple[
+        Quantity["length"],
+        Quantity["temperature"],
+        Quantity["pressure"],
+        Quantity["mass density"] | None,
+    ]:
         """
-        Follow Section  3.1 to build the temperature and pressure profiles.
+        Follow Section  3.1 to build the temperature, pressure, and mass density
+        profiles.
 
         Parameters
         ----------
+        use_compressible_gas
+            Whether to use the gas compressibility factor when deriving the mass
+            density for the 0-100 km altitude range, or assume the ideal gas law.
+            Gas compressibility is always assumed below 0 km, and never above 100 km.
         use_keating_temp_press_above100km
             Whether to use the temperature profile from :cite:t:`keating1985`
             above 100 km, and get its matching pressure profile from the
@@ -1288,10 +1315,12 @@ class Duan2010(Model):
             Temperature profile
         pressure
             Pressure profile
+        mass_density
+            Mass density profile (only if ``use_compressible_gas=True``)
         """
 
         # p. 13: "for the lower atmosphere, [...] the temperature curve at
-        # latitude of 75° in the work of Seiff et al. [1985] is used after being
+        # latitude of 75° in the work of Seiff et al. (1985) is used after being
         # increased by 3 K"
         ix_seiff_below_zasova = (
             seiff1985.tables["1-2d"]["z"] < zasova2006.tables["5"]["H"][-1]
@@ -1308,21 +1337,41 @@ class Duan2010(Model):
             seiff1985.tables["1-1"]["p"],
             seiff1985.tables["1-2d"]["p"][ix_seiff_below_zasova],
         ]
+        if use_compressible_gas:
+            dens = [
+                seiff1985.tables["1-1"]["ρ"],
+                seiff1985.tables["1-2d"]["ρ"][ix_seiff_below_zasova],
+            ]
 
         # p. 14: "In the simulation, the middle atmosphere temperature and
         # pressure profiles are using the column of Ls = 200°–270° in
-        # Table 5 of Zasova et al. [2006]"
+        # Table 5 of Zasova et al. (2006)"
         alt.append(zasova2006.tables["5"]["H"][::-1])
         temp.append(zasova2006.tables["5"]["Ls = 200°-270°, T"][::-1])
         press.append(zasova2006.tables["5"]["Ls = 200°-270°, P"][::-1])
+        # interpolate the pressure levels of Zasova et al. (2006) onto compressible
+        # density profile from Seiff et al. (1985)
+        if use_compressible_gas:
+            dens.append(
+                Quantity(
+                    np.interp(
+                        press[-1].to("bar").value,
+                        seiff1985.tables["1-2d"]["p"].to("bar").value[::-1],
+                        seiff1985.tables["1-2d"]["ρ"].value[::-1],
+                    ),
+                    seiff1985.tables["1-2d"]["ρ"].unit,
+                )
+            )
         # extrapolate to negative altitudes
-        alt_neg, temp_neg, press_neg, _ = Model.tpd_below_0km(
+        alt_neg, temp_neg, press_neg, dens_neg = Model.tpd_below_0km(
             Duan2010.VENUS_GAS_CONSTANT
         )
         # insert into list
         alt.insert(0, alt_neg)
         temp.insert(0, temp_neg)
         press.insert(0, press_neg)
+        if use_compressible_gas:
+            dens.insert(0, dens_neg)
 
         # for altitudes higher than 100 km, we can use the VIRA model from
         # Keating et al. (1985) directly from 105 km upwards
@@ -1332,8 +1381,11 @@ class Duan2010(Model):
             alt.append(keating1985.tables["night"]["ALT"][1:])
             temp.append(keating1985.tables["night"]["T"][1:])
             press.append(keating1985.tables["night"]["P"][1:])
+            if use_compressible_gas:
+                dens.append(keating1985.tables["night"]["RHO"][1:])
         # otherwise, we use a previously-fitted extrapolating function for pressure,
-        # and continue the temperature as a constant
+        # continue the temperature as a constant, and use the ideal gas law to get
+        # mass density
         else:
             extrap_alt_km = np.arange(101, 376)
             alt.append(
@@ -1362,6 +1414,8 @@ class Duan2010(Model):
                     "atm",
                 ).to(keating1985.tables["night"]["P"].unit)
             )
+            if use_compressible_gas:
+                dens.append(press[-1] / (Duan2010.VENUS_GAS_CONSTANT * temp[-1]))
 
         # combine
         altitude = np.concatenate(alt)
@@ -1373,8 +1427,15 @@ class Duan2010(Model):
         temperature.info.name = "temperature"
         pressure.info.name = "pressure"
 
+        # repeat for mass density if we extracted it
+        if use_compressible_gas:
+            mass_density = np.concatenate(dens)
+            mass_density.info.name = "mass density"
+        else:
+            mass_density = None
+
         # done
-        return altitude, temperature, pressure
+        return altitude, temperature, pressure, mass_density
 
     @staticmethod
     def get_composition(
@@ -2768,6 +2829,7 @@ class VariableProfiles(Duan2010):
 
     def __init__(
         self,
+        use_compressible_gas: bool = True,
         use_keating_temp_press_above100km: bool = False,
         use_keating_co_co2_n2_above_100km: bool = False,
         use_kolste_h2so4: bool = False,
@@ -2793,6 +2855,7 @@ class VariableProfiles(Duan2010):
         self._use_cimino_fitted_lookup = use_cimino_fitted_lookup
         # call parent initializer
         super().__init__(
+            use_compressible_gas,
             use_keating_temp_press_above100km,
             use_keating_co_co2_n2_above_100km,
             use_kolste_h2so4,
@@ -2913,12 +2976,14 @@ class VariableProfiles(Duan2010):
         alt_prof = Quantity(profile[:, 0], seiffkeating.UNITS[0])
         temp_prof = Quantity(profile[:, 1], seiffkeating.UNITS[1])
         press_prof = Quantity(profile[:, 2], seiffkeating.UNITS[2])
+        dens_prof = Quantity(profile[:, 3], seiffkeating.UNITS[3])
         # get current units
         unit_alt = self.altitude.unit
         unit_temp = self.temperature.unit
         unit_press = self.pressure.unit
+        unit_dens = self.mass_density.unit
         # get extrapolated below 0 km
-        alt_neg, temp_neg, press_neg, _ = Model.tpd_below_0km(
+        alt_neg, temp_neg, press_neg, dens_neg = Model.tpd_below_0km(
             Duan2010.VENUS_GAS_CONSTANT
         )
         # combine
@@ -2931,6 +2996,9 @@ class VariableProfiles(Duan2010):
         new_press = np.concatenate(
             [press_neg.to(unit_press).value, press_prof.to(unit_press).value]
         )
+        new_dens = np.concatenate(
+            [dens_neg.to(unit_dens).value, dens_prof.to(unit_dens).value]
+        )
         # interpolate to current altitudes
         altitude = self.altitude.to(unit_alt).value
         self.temperature = Quantity(
@@ -2940,6 +3008,10 @@ class VariableProfiles(Duan2010):
         self.pressure = Quantity(
             np.interp(altitude, new_alt, new_press, left=np.nan, right=np.nan),
             unit_press,
+        )
+        self.mass_density = Quantity(
+            np.interp(altitude, new_alt, new_dens, left=np.nan, right=np.nan),
+            unit_dens,
         )
         # call update methods
         if update:
