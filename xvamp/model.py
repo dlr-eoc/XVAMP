@@ -2897,7 +2897,7 @@ class VariableProfiles(Duan2010):
             -1, localtimes.size, latitudes.size
         )
         profiles_el[profiles_el == 0] = np.nan
-        self.profiles_el = np.log10(profiles_el)
+        self.profiles_el = np.log10(profiles_el.value)
         # save input
         self.latitudes = latitudes
         self.localtimes = localtimes
@@ -2938,7 +2938,7 @@ class VariableProfiles(Duan2010):
             right=np.nan,
         )
         electron_density[np.isnan(electron_density)] = 0
-        self.electron_density = Quantity(electron_density, profile.unit)
+        self.electron_density = Quantity(electron_density, paetzold2007.UNIT_EL_DENSITY)
         # call update methods
         if update:
             self.update_from_ionosphere()
