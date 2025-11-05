@@ -1068,23 +1068,23 @@ class Zasova2006(Reference):
 
 
 class SeiffKeating:
-    """
-    Class that combines the temperature, pressure, and density profiles from the
-    two references :cite:t:`seiff1985`, which contains latitudinal variations,
-    and :cite:t:`keating1985`, which contains variations with solar zenith angle.
-
-    Parameters
-    ----------
-    seiff
-        Initialized :class:`~xvamp.reference.Seiff1985` model
-    keating
-        Initialized :class:`~xvamp.reference.Keating1985` model
-    """
 
     UNITS = [Unit("km"), Unit("K"), Unit("bar"), Unit("kg/m3")]
     """ Units of the returned profiles """
 
     def __init__(self, seiff: Seiff1985, keating: Keating1985):
+        """
+        Class that combines the temperature, pressure, and density profiles from the
+        two references :cite:t:`seiff1985`, which contains latitudinal variations,
+        and :cite:t:`keating1985`, which contains variations with solar zenith angle.
+
+        Parameters
+        ----------
+        seiff
+            Initialized :class:`~xvamp.reference.Seiff1985` model
+        keating
+            Initialized :class:`~xvamp.reference.Keating1985` model
+        """
         # save models
         self.seiff = seiff
         self.keating = keating
@@ -1100,7 +1100,12 @@ class SeiffKeating:
         )
         # done
 
-    def __call__(self, latitude: Quantity, localtime: Quantity):
+    def __call__(
+        self,
+        latitude: Quantity,
+        localtime: Quantity,
+        add_3K: bool = False,
+    ):
         """
         Interpolate the profiles from :cite:t:`seiff1985` and :cite:t:`keating1985`.
 
@@ -1110,6 +1115,11 @@ class SeiffKeating:
             Latitude [°] of desired profiles
         localtime
             Local solar time [h] of desired profiles
+        add_3K
+            This refers to the 3 K addition done in the :cite:t:`Duan2010` model
+            when combining the :cite:t:`seiff1985` and :cite:t:`zasova2006` profiles.
+            If ``True``, the 3 K are added to all latitudes, if ``False``, to none of
+            them.
 
         Returns
         -------
@@ -1131,17 +1141,18 @@ class SeiffKeating:
         ref_0km_32km = (
             self.seiff.tables["1-1"].as_array().view((float, 7))[:, :4, None, None]
         )
-        # adjust temperature
-        # TODO check if it still makes sense
-        ref_0km_32km[:, 1] += 3
+        # adjust temperature if desired
+        if add_3K:
+            ref_0km_32km[:, 1] += 3
         # compute data at reference altitudes
         # 33-100 km
         basis_33km_100km = self.interp_33km_100km(np.abs(latitude.to("°").value))
         ref_33km_100km = np.einsum(
             "ijk,lk->ijl", self.seiff.dcube_33km_100km, basis_33km_100km
         )
-        # adjust temperature
-        ref_33km_100km[:, 1, :] += 3
+        # adjust temperature if desired
+        if add_3K:
+            ref_33km_100km[:, 1, :] += 3
         # 100-150 km
         basis_100km_150km = self.interp_100km_150km(sza.ravel())
         ref_100km_150km = np.einsum(

@@ -2841,6 +2841,7 @@ class VariableProfiles(Duan2010):
         use_cimino_clouds: bool = True,
         use_cimino_fitted_lookup: bool = False,
         min_altitude_spacing: Quantity = Quantity(1, "km"),
+        add_3K: bool = False,
     ):
         """
         Warning
@@ -2849,6 +2850,7 @@ class VariableProfiles(Duan2010):
         and does not have usage documentation yet.
         """
         # save init variables for later use
+        self._add3K = add_3K
         self._cutoff_so2_frequency = cutoff_so2_frequency
         self._use_kolbe_ocs = use_kolbe_ocs
         self._use_cimino_clouds = use_cimino_clouds
@@ -2891,7 +2893,7 @@ class VariableProfiles(Duan2010):
         :attr:`~VariableProfiles.profiles_el` attributes.
         """
         # run temperature, pressure, and density model
-        self.szas, self.profiles_tpd = seiffkeating(latitudes, localtimes)
+        self.szas, self.profiles_tpd = seiffkeating(latitudes, localtimes, self._add3K)
         # run ionosphere model, save in log space for easier interpolation
         profiles_el = paetzold2007(self.szas.ravel()).reshape(
             -1, localtimes.size, latitudes.size
