@@ -118,7 +118,7 @@ profiles to negative altitudes instead.
    This should have a negligible impact on the final delay or attenuation values.
 
 Cloud polarization and absorption
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'''''''''''''''''''''''''''''''''
 
 The paper describes a way to incorporate the effect of the cloud layer in sections
 2.1.5 and 2.2.5. The reference code, however, follows a different approach: the one
@@ -142,7 +142,7 @@ However, the paper version is available as an option (``use_cimino_clouds=False`
    and a negligible one on the final delay values.
 
 Polarization and absorption of OCS
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+''''''''''''''''''''''''''''''''''
 
 *Still needs to be written - the reference code only includes OCS absorption,
 whereas XVAMP and the study include both. There are also discrepancies in the
@@ -154,7 +154,7 @@ being finalized.*
    This should have a negligible impact on the final delay or attenuation values.
 
 Polarization of H2SO4
-^^^^^^^^^^^^^^^^^^^^^
+'''''''''''''''''''''
 
 *Still needs to be written - the reference code has some flaws in the way it
 computes the H2SO4 polarization parameters. These are fixed internally, but not
