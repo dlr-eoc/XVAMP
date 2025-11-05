@@ -93,8 +93,6 @@ class Pitzer1983Parameters:
     per molar volume as given by :cite:t:`duan2010` on p. 5, eq. (14).
     """
 
-    M: Quantity[G_PER_MOL]
-    """ Molecular weight [g/mol] """
     mu: Quantity[ESU_CM]
     """ Molecular dipole moment [esu cm = 1e18 D] """
     alpha_T: Quantity["cm3"]
@@ -719,7 +717,6 @@ class Duan2010(Model):
     MC_AR = HarveyLemmon2005Parameters(4.1414, 0.0, 1.597, 0.262, -117.9, 0.0, 2.1)
     """ Mixture parameters for Ar in cgs units """
     PP_water_vapor = Pitzer1983Parameters(
-        Quantity(18.01524, G_PER_MOL),
         Quantity(1.84e-18, ESU_CM),
         alpha_T=Quantity(1.444e-24, "cm3"),
     )
@@ -1124,9 +1121,7 @@ class Duan2010(Model):
                     self.molar_fractions[c] * self.molar_density
                 ).decompose()
                 # mass densities
-                mass_densities[c] = (
-                    molar_densities[c] * self.SPEC_MOL_M[c]
-                ).decompose()
+                mass_densities[c] = (molar_densities[c] * SPEC_MOL_M[c]).decompose()
         except NameError as e:
             # if molar_fractions are missing, then we simply skip
             # the computation, but otherwise something's wrong
@@ -1768,20 +1763,15 @@ class Duan2010(Model):
             )
         else:
             # get molecular polarizability
-            d_SO2 = (
-                (Duan2010.P_SO2 * Duan2010.SPEC_MOL_M["SO2"])
-                / (GAS_CONSTANT * Duan2010.T_SO2)
-            ).decompose()
+            rho_SO2 = ((Duan2010.P_SO2) / (GAS_CONSTANT * Duan2010.T_SO2)).decompose()
             alpha_T_SO2 = Duan2010.alpha_T_from_eq14(
-                d_SO2,
+                rho_SO2,
                 Duan2010.T_SO2,
                 Pnu_SO2,
-                Duan2010.SPEC_MOL_M["SO2"],
                 Duan2010.MU_SO2,
             )
             # define Pitzer parameter set
             polarization_parameters["SO2"] = Pitzer1983Parameters(
-                Duan2010.SPEC_MOL_M["SO2"],
                 Duan2010.MU_SO2,
                 alpha_T_SO2,
             )
@@ -1803,17 +1793,14 @@ class Duan2010(Model):
             )
         else:
             # get molecular polarizability
-            d_H2SO4 = Duan2010.KS_RHO_H2SO4 * Duan2010.SPEC_MOL_M["H2SO4"]
             alpha_T_H2SO4 = Duan2010.alpha_T_from_eq14(
-                d_H2SO4,
+                Duan2010.KS_RHO_H2SO4,
                 Duan2010.KS_T_H2SO4,
                 Pnu_H2SO4,
-                Duan2010.SPEC_MOL_M["H2SO4"],
                 Duan2010.MU_H2SO4,
             )
             # define Pitzer parameter set
             polarization_parameters["H2SO4"] = Pitzer1983Parameters(
-                Duan2010.SPEC_MOL_M["H2SO4"],
                 Duan2010.MU_H2SO4,
                 alpha_T_H2SO4,
             )
@@ -1833,20 +1820,15 @@ class Duan2010(Model):
             )
         else:
             # get molecular polarizability
-            d_CO = (
-                (Duan2010.P_CO * Duan2010.SPEC_MOL_M["CO"])
-                / (GAS_CONSTANT * Duan2010.T_CO)
-            ).decompose()
+            rho_CO = ((Duan2010.P_CO) / (GAS_CONSTANT * Duan2010.T_CO)).decompose()
             alpha_T_CO = Duan2010.alpha_T_from_eq14(
-                d_CO,
+                rho_CO,
                 Duan2010.T_CO,
                 Pnu_CO,
-                Duan2010.SPEC_MOL_M["CO"],
                 Duan2010.MU_CO,
             )
             # define Pitzer parameter set
             polarization_parameters["CO"] = Pitzer1983Parameters(
-                Duan2010.SPEC_MOL_M["CO"],
                 Duan2010.MU_CO,
                 alpha_T_CO,
             )
@@ -1866,20 +1848,15 @@ class Duan2010(Model):
             )
         else:
             # get molecular polarizability
-            d_OCS = (
-                (Duan2010.P_OCS * Duan2010.SPEC_MOL_M["OCS"])
-                / (GAS_CONSTANT * Duan2010.T_OCS)
-            ).decompose()
+            rho_OCS = ((Duan2010.P_OCS) / (GAS_CONSTANT * Duan2010.T_OCS)).decompose()
             alpha_T_OCS = Duan2010.alpha_T_from_eq14(
-                d_OCS,
+                rho_OCS,
                 Duan2010.T_OCS,
                 Pnu_OCS,
-                Duan2010.SPEC_MOL_M["OCS"],
                 Duan2010.MU_OCS,
             )
             # define Pitzer parameter set
             polarization_parameters["OCS"] = Pitzer1983Parameters(
-                Duan2010.SPEC_MOL_M["OCS"],
                 Duan2010.MU_OCS,
                 alpha_T_OCS,
             )
@@ -1901,13 +1878,11 @@ class Duan2010(Model):
         for comp, params in self.polarization_parameters.items():
             if isinstance(params, HarveyLemmon2005Parameters):
                 polarizations[comp] = Duan2010.eq8(
-                    self.molar_densities[comp],
-                    self.temperature,
-                    params,
+                    self.molar_densities[comp], self.temperature, params
                 )
             elif isinstance(params, Pitzer1983Parameters):
                 polarizations[comp] = Duan2010.eq14(
-                    self.mass_densities[comp], self.temperature, params
+                    self.molar_densities[comp], self.temperature, params
                 )
             else:
                 raise NotImplementedError(
@@ -2285,7 +2260,7 @@ class Duan2010(Model):
         return A_epsilon.to("cm3/mol").value
 
     @staticmethod
-    def _kirkwood_correlation_cgs(
+    def kirkwood_correlation_cgs(
         d: float_or_array,
         T: float_or_array,
         p0: float = 2.68,
@@ -2314,10 +2289,10 @@ class Duan2010(Model):
 
     @staticmethod
     def eq14(
-        d: Quantity,
+        rho: Quantity,
         T: Quantity,
         pp: Pitzer1983Parameters,
-        g_is_1: bool = True,
+        g: float = 1.0,
     ) -> Quantity:
         """
         Calculate the polarization per molar volume as described in
@@ -2326,34 +2301,21 @@ class Duan2010(Model):
 
         Parameters
         ----------
-        d
-            Mass density [kg/m^3]
+        rho
+            Molar density [mol/m^3]
         T
             Temperature [K]
         pp
             Material polarization parameters
-        g_is_1
-            Whether to assume that the Kirkwood correlation factor is 1,
-            or should be calculated
+        g
+            Kirkwood correlation factor
 
         Returns
         -------
             Polarization per molar volume [-]
         """
-        # input check
-        if pp.alpha_T is None:
-            raise ValueError(
-                "Molecular polarizability alpha_T of material needs to be known."
-            )
-        # evaluate
-        g = (
-            1
-            if g_is_1
-            else Duan2010._kirkwood_correlation_cgs(
-                d.to("g/cm3").value, T.to("K").value
-            )
-        )
-        first_term = (4 * np.pi * AVOGADRO * d) / (3 * pp.M)
+        # mass_density / molar_mass = molar_density
+        first_term = (4 * np.pi * AVOGADRO * rho) / 3
         second_term = pp.alpha_T + (pp.mu**2 * g) / (3 * BOLTZMANN * T)
         Pnu = first_term * second_term
         # return dimensionless Quantity
@@ -2361,12 +2323,11 @@ class Duan2010(Model):
 
     @staticmethod
     def alpha_T_from_eq14(
-        d: Quantity,
+        rho: Quantity,
         T: Quantity,
         Pnu: Quantity,
-        M: Quantity,
         mu: Quantity,
-        g_is_1: bool = True,
+        g: float = 1.0,
     ) -> Quantity:
         """
         Calculate the molecular polarizability as described in eq. (14) on
@@ -2375,33 +2336,23 @@ class Duan2010(Model):
 
         Parameters
         ----------
-        d
-            Mass density [kg/m^3]
+        rho
+            Molar density [mol/m^3]
         T
             Temperature [K]
         Pnu
             Polarization per molar volume [-]
-        M
-            Molecular weight [g/mol]
         mu
             Molecular dipole moment [esu cm = 1e18 D]
-        g_is_1
-            Whether to assume that the Kirkwood correlation factor is 1,
-            or should be calculated
+        g
+            Kirkwood correlation factor
 
         Returns
         -------
             Molecular polarizability [cm^3]
         """
-        # evaluate
-        g = (
-            1
-            if g_is_1
-            else Duan2010._kirkwood_correlation_cgs(
-                d.to("g/cm3").value, T.to("K").value
-            )
-        )
-        first_term = (3 * M * Pnu) / (4 * np.pi * AVOGADRO * d)
+        # molar_mass / mass_density = 1 / molar_density
+        first_term = (3 * Pnu) / (4 * np.pi * AVOGADRO * rho)
         second_term = ((mu**2 * g) / (3 * BOLTZMANN * T)).decompose()
         alpha_T = (first_term - second_term).decompose()
         if alpha_T < 0:
