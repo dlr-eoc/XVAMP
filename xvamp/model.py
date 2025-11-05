@@ -621,19 +621,6 @@ class Model:
 # Model class that implements the Duan et al. (2010) paper
 class Duan2010(Model):
 
-    # species molar masses
-    SPEC_MOL_M = {
-        "CO2": Quantity(44.0095, G_PER_MOL),
-        "N2": Quantity(28.01340, G_PER_MOL),
-        "H2O": Quantity(18.01524, G_PER_MOL),
-        "SO2": Quantity(64.0638, G_PER_MOL),
-        "H2SO4": Quantity(98.0785, G_PER_MOL),
-        "CO": Quantity(28.0101, G_PER_MOL),
-        "OCS": Quantity(60.0751, G_PER_MOL),
-        "AR": Quantity(39.9480, G_PER_MOL),
-    }
-    """ Species molar masses [g/mol] """
-
     # constants relating to sulfur dioxide absorption
     EPS_PRIME_R_SO2 = Quantity(1.0099, u.dimensionless_unscaled)
     """ X-band estimated dielectric constant of SO2 at 1 atm and 0 °C"""
