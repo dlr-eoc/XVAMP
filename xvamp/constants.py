@@ -9,6 +9,8 @@ from astropy.units import Unit, Quantity
 # unit shorthands
 G_PER_MOL = Unit("g/mol")
 """ Unit [g/mol] """
+ESU_CM = Unit("esu cm")
+""" Unit [esu cm = 1e18 D] """
 
 # general
 FREE_SPACE_PERM = Quantity(8.8541878188e-12, "F/m")

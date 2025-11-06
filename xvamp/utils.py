@@ -14,7 +14,7 @@ from astropy.units import Quantity, UnitConversionError
 from astropy.table import Table, QTable
 
 # package imports
-from .constants import HEADERPATTERN, VENUS_RADIUS
+from .constants import *
 
 # type shorthands
 float_or_array = float | NDArray[np.double]
@@ -83,6 +83,90 @@ def read_unit_fwf(
     data = np.genfromtxt(path, dtype=formats, delimiter=widths, encoding="utf8")
     # build QTable
     return QTable(data, names=names, units=units)
+
+
+@dataclass
+class HarveyLemmon2005Parameters:
+    """
+    Parameters for mixture components from :cite:t:`harvey2005`,
+    as represented in :cite:t:`duan2010`, Table 1 for eq. (8).
+    Parameters are NOT converted to astropy :class:`~astropy.units.Quantity`
+    because of the unknown exponent.
+    """
+
+    a0: float = 0
+    """ [cm^3/mol] """
+    a1: float = 0
+    """ [cm^3/mol] """
+    b0: float = 0
+    """ [cm^6/mol^2] """
+    b1: float = 0
+    """ [cm^6/mol^2] """
+    c0: float = 0
+    """ [cm^(3(D+1))/mol^-(D+1)] """
+    c1: float = 0
+    """ [cm^(3(D+1))/mol^-(D+1)] """
+    D: float = 0
+    """ [-] """
+    T0: float = 273.16
+    """ Temperature [K] """
+    A_mu: float = 0
+    """ Dipolar term in the virial expansion [cm^3 K/mol] """
+
+    @staticmethod
+    def get_A_mu(mu: Quantity) -> float_or_array:
+        """
+        Compute the dipolar term in the dielectric virial expansion,
+        assuming CGS units in the input, but SI in the output.
+
+        Parameters
+        ----------
+        mu
+            Permanent dipole moment [esu cm]
+
+        Returns
+        -------
+            Dipolar term in the virial expansion [cm^3 K/mol]
+        """
+        return ((4 * np.pi * AVOGADRO * mu**2) / (9 * BOLTZMANN)).to("cm3 K/mol").value
+
+
+@dataclass
+class Pitzer1983Parameters:
+    """
+    Parameters for the :cite:t:`pitzer1983` model to calculate the polarization
+    per molar volume as given by :cite:t:`duan2010` on p. 5, eq. (14).
+    """
+
+    mu: Quantity[ESU_CM]
+    """ Molecular dipole moment [esu cm = 1e18 D] """
+    alpha_T: Quantity["cm3"]
+    """ Molecular polarizability [cm^3] """
+
+
+@dataclass
+class BenReuvenParameters:
+    """
+    Parameters for the Ben-Reuven line shape function, following the
+    notation from :cite:t:`duan2010`, eqs. (27-32) on p. 10f.
+    """
+
+    T_0: Quantity["K"]
+    """ Reference temperature of broadening coefficients [K] """
+    gamma_min_maj: Quantity["MHz/torr"]
+    """ Foreign-broadened linewidth parameter [MHz/torr] """
+    gamma_min_min: Quantity["MHz/torr"]
+    """ Self-broadened linewidth parameter [MHz/torr] """
+    zeta_min_maj: Quantity["MHz/torr"]
+    """ Foreign-coupling parameter [MHz/torr] """
+    zeta_min_min: Quantity["MHz/torr"]
+    """ Self-coupling linewidth parameter [MHz/torr] """
+    delta_min: Quantity["MHz/torr"]
+    """ Frequency shift parameter [MHz/torr] """
+    m: float
+    """ Temperature dependence of the coupling [-] """
+    n: float
+    """ Temperature dependence of the linewidth [-] """
 
 
 def fill_df(
