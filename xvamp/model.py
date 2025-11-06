@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import astropy.units as u
 import astropy.table as astrotable
+from pathlib import Path
 from typing import Tuple
 from collections.abc import Callable
 from astropy.units import Quantity, Unit
@@ -20,6 +21,7 @@ from .constants import *
 from .utils import (
     float_or_array,
     fill_df,
+    read_polarization_parameters,
     HarveyLemmon2005Parameters,
     Pitzer1983Parameters,
     BenReuvenParameters,
@@ -740,6 +742,7 @@ class Duan2010(Model):
         use_virial_approximation: bool = True,
         use_cimino_clouds: bool = True,
         use_cimino_fitted_lookup: bool = False,
+        load_polarization_parameters: bool | str | Path = True,
         min_altitude_spacing: Quantity = Quantity(1, "km"),
     ) -> None:
         """
@@ -811,6 +814,11 @@ class Duan2010(Model):
             model is flawed. Regardless, this options only has a range delay effect
             on the sub-micrometer scale, and an effect on the two-way attenuation
             on the millidecibel scale.
+        load_polarization_parameters
+            By default, the polarization parameters are loaded from a prepackaged
+            configuration file (in ``"data/default_polarization_parameters.toml"``).
+            If set to ``False``, they are recomputed with the current settings.
+            If set to a filename, the parameters are loaded from there.
         min_altitude_spacing
             Minimum height spacing between altitude nodes.
         """
@@ -961,9 +969,19 @@ class Duan2010(Model):
 
         # the computation of the polarization parameters is independent of
         # the loaded atmospheric profiles
-        self.polarization_parameters = Duan2010.get_polarization_parameters(
-            add_ar=add_ar, use_virial_approximation=use_virial_approximation
-        )
+
+        # check if we should recompute them
+        if load_polarization_parameters == False:
+            self.polarization_parameters = Duan2010.get_polarization_parameters(
+                add_ar=add_ar, use_virial_approximation=use_virial_approximation
+            )
+        # or load them (either the defaults or from a file)
+        else:
+            self.polarization_parameters = read_polarization_parameters(
+                None
+                if load_polarization_parameters == True
+                else load_polarization_parameters
+            )
 
         # everything else depends on the current state
         self.update_pol_absorp_atmosphere(
@@ -1789,7 +1807,8 @@ class Duan2010(Model):
         # initialize
         polarizations = astrotable.QTable()
         # loop over species
-        for comp, params in self.polarization_parameters.items():
+        for comp in self.molar_densities.keys():
+            params = self.polarization_parameters[comp]
             if isinstance(params, HarveyLemmon2005Parameters):
                 polarizations[comp] = Duan2010.eq8(
                     self.molar_densities[comp], self.temperature, params

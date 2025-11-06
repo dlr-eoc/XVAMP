@@ -1,0 +1,66 @@
+# Polarization parameters written by XVAMP on 2025-11-06T12:00:27+01:00
+
+# Each following table describes the parameter set for a
+# given species by describing its type and then all
+# individual parameters required by the set type.
+
+[AR]
+__name__ = "HarveyLemmon2005Parameters"
+a0 = 4.1414
+a1 = 0.0
+b0 = 1.597
+b1 = 0.262
+c0 = -117.9
+c1 = 0.0
+D = 2.1
+T0 = 273.16
+A_mu = 0.0
+
+[CO]
+__name__ = "Pitzer1983Parameters"
+mu = [1.12e-19, "Fr cm"]
+alpha_T = [1.9465632346921543e-24, "cm3"]
+
+[CO2]
+__name__ = "HarveyLemmon2005Parameters"
+a0 = 7.3455
+a1 = 0.00335
+b0 = 83.93
+b1 = 145.1
+c0 = -578.8
+c1 = -1012.0
+D = 1.55
+T0 = 273.16
+A_mu = 0.0
+
+[H2O]
+__name__ = "Pitzer1983Parameters"
+mu = [1.84e-18, "Fr cm"]
+alpha_T = [1.444e-24, "cm3"]
+
+[H2SO4]
+__name__ = "Pitzer1983Parameters"
+mu = [2.72e-18, "Fr cm"]
+alpha_T = [3.3072792469786587e-23, "cm3"]
+
+[N2]
+__name__ = "HarveyLemmon2005Parameters"
+a0 = 4.3872
+a1 = 0.00226
+b0 = 2.206
+b1 = 1.135
+c0 = -169.0
+c1 = -35.83
+D = 2.1
+T0 = 273.16
+A_mu = 0.0
+
+[OCS]
+__name__ = "Pitzer1983Parameters"
+mu = [7.1521e-19, "Fr cm"]
+alpha_T = [1.9828734752010794e-22, "cm3"]
+
+[SO2]
+__name__ = "Pitzer1983Parameters"
+mu = [1.633e-18, "Fr cm"]
+alpha_T = [5.6551475114495064e-24, "cm3"]
