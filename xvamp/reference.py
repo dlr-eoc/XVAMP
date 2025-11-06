@@ -15,7 +15,7 @@ from astropy.table import Table, QTable, hstack, vstack, join
 
 # package imports
 from . import data
-from .constants import GAS_CONSTANT
+from .constants import ESU_CM, GAS_CONSTANT, SPEC_MOL_M
 from .utils import (
     BoundedInterpolatingBasis,
     cast_to_np,
@@ -816,6 +816,22 @@ class KolodnerSteffes1998(Reference):
     TABLES = ["fig789"]
     """ Table numbers to load """
 
+    # parameters of the experiment
+    MU_H2SO4 = Quantity(2.72e-18, ESU_CM)
+    """ Molecular dipole moment for gaseous sulfuric acid """
+    N_H2SO4 = Quantity((340.64 + 245.36) / 2, "Nunit")
+    """ Refractivity of the gaseous sulfuric acid """
+    D_H2SO4_L = Quantity(1.8305, "g/ml")
+    """ Mass density of the sulfuric acid solution before it evaporates """
+    DISS_H2SO4 = 0.461
+    """ Dissociation constant of vaporized H2SO4 """
+    V_H2SO4 = Quantity((4.12 + 3.18) / 2, "cm3")
+    """ Volume of the H2SO4 solution which vaporizes """
+    V_VESSEL = Quantity(31, "l")
+    """ Volume of the pressure vessel """
+    T_H2SO4 = Quantity(553, "K")
+    """ Temperature of the experiment of :cite:t:`kolodner1998` """
+
     def __init__(self) -> None:
         """
         Initialize the model from the raw data.
@@ -844,6 +860,31 @@ class KolodnerSteffes1998(Reference):
         self.tables["H2SO4 X-band"] = hstack(
             [self.tables["fig789"]["altitude"], h2so4_sum]
         )
+
+    def get_eps_prime_r_and_molar_density(
+        self,
+    ) -> Tuple[Quantity["dimensionless"], Quantity["molar concentration"]]:
+        """
+        Computes the real part of the relative permittivity and the molar density
+        of H2SO4 in the experiment as described in Section 3.2.
+
+        Returns
+        -------
+        eps_prime_r
+            Real part of the relative permittivity of H2SO4 in the experiment
+        rho
+            Molar density of H2SO4 in the experiment
+        """
+        # real part of the relative permittivity
+        eps_prime_r = (self.N_H2SO4.to(u.dimensionless_unscaled)) ** 2
+        # Number of moles of pure H2SO4 liquid which vaporizes
+        nvap = (self.V_H2SO4 * self.D_H2SO4_L / SPEC_MOL_M["H2SO4"]).decompose()
+        # Number of moles of H2SO4 vapor
+        nmol = nvap * (1 - self.DISS_H2SO4)
+        # Molar density of gaseous sulfuric acid
+        rho = (nmol / self.V_VESSEL).to("mol/cm3")
+        # done
+        return eps_prime_r, rho
 
 
 class Marcq2006(Reference):
