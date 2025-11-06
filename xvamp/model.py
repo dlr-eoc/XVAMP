@@ -2116,7 +2116,7 @@ class Duan2010(Model):
         fluid: HarveyLemmon2005Parameters,
     ) -> Quantity:
         """
-        Calculate the polarization per molar volume using the dielectric
+        Calculate the total polarization using the dielectric
         virial expansion as described in eq. (8) from :cite:t:`duan2010`.
 
         Parameters
@@ -2130,7 +2130,7 @@ class Duan2010(Model):
 
         Returns
         -------
-            Polarization per molar volume [-]
+            Polarization [-]
         """
         # convert to cm^3 and K units
         # as required by HarveyLemmon2005Parameters
@@ -2213,7 +2213,7 @@ class Duan2010(Model):
         g: float = 1.0,
     ) -> Quantity:
         """
-        Calculate the polarization per molar volume as described in
+        Calculate the total polarization as described in
         eq. (14), assuming we know the molecular polarizability and
         molecular dipole moment.
 
@@ -2230,7 +2230,7 @@ class Duan2010(Model):
 
         Returns
         -------
-            Polarization per molar volume [-]
+            Polarization [-]
         """
         # mass_density / molar_mass = molar_density
         first_term = (4 * np.pi * AVOGADRO * rho) / 3
