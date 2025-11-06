@@ -606,19 +606,19 @@ class Duan2010(Model):
     MU_OCS = Quantity(0.71521e-18, ESU_CM)
     """ Permanent dipole moment of OCS [esu cm] """
     BR_OCS_CO2 = BenReuvenParameters(
-        T_0=Quantity(298, "K"),
-        gamma_min_maj=Quantity(4.3, "MHz/torr"),
-        gamma_min_min=Quantity(5.9, "MHz/torr"),
+        T_0=Quantity(300, "K"),
+        gamma_min_maj=Quantity(7.2, "MHz/torr"),
+        gamma_min_min=Quantity(16, "MHz/torr"),
         zeta_min_maj=Quantity(0, "MHz/torr"),
         zeta_min_min=Quantity(0, "MHz/torr"),
         delta_min=Quantity(0, "MHz/torr"),
-        m=0.7,
-        n=0.7,
+        m=0.85,
+        n=0.85,
     )
     """ Ben-Reuven line parameters for OCS in CO2 """
 
     # constants relating to sulfur dioxide (SO2)
-    EPS_PRIME_R_INF_SO2 = Quantity(1.00825, u.dimensionless_unscaled)
+    EPS_PRIME_R_INF_SO2 = Quantity(1.00587032, u.dimensionless_unscaled)
     """ Estimated dielectric constant of SO2 at infinite frequency """
     P_SO2 = Quantity(101325, "Pa")
     """ Pressure at which the dielectric constant for SO2 was calculated """
@@ -2681,7 +2681,7 @@ class Duan2010(Model):
         nu: Quantity["frequency"],
         freqmin: Quantity["frequency"] = Quantity(0.1, "MHz"),
         freqmax: Quantity["frequency"] = Quantity(4, "THz"),
-        freqstep: Quantity["frequency"] = Quantity(0.1, "GHz"),
+        freqstep: Quantity["frequency"] = Quantity(1, "GHz"),
     ):
         """
         Computes the real part of the relative permittivity by integrating
