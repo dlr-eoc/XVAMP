@@ -2014,31 +2014,26 @@ class Duan2010(Model):
     def sum_polarizations(self) -> Quantity["dimensionless"]:
         """
         Sum the polarizations already present in the model.
-        Species that have a defined molar fraction are scaled accordingly,
-        the ones that don't are assumed to already be scaled.
+        These have all already been scaled by their volume fraction.
 
         Returns
         -------
             Total polarization of the atmospheric profile
         """
-        # get two distinct sets of species present
-        set_unscaled = set(self.polarizations.colnames) & set(
-            self.molar_fractions.colnames
-        )
-        set_scaled = set(self.polarizations.colnames) - set_unscaled
-        # sum
-        sum_unscaled = sum(
+        # convert to same scale and stack
+        polarizations = np.stack(
             [
-                np.nan_to_num(
-                    (self.molar_fractions[c] * self.polarizations[c]).decompose()
-                )
-                for c in set_unscaled
-            ]
+                self.polarizations[c].to(u.dimensionless_unscaled)
+                for c in self.polarizations.colnames
+            ],
+            axis=-1,
         )
-        sum_scaled = sum(
-            [np.nan_to_num(self.polarizations[c].decompose()) for c in set_scaled]
+        # replace (only) NaNs
+        polarizations = np.nan_to_num(
+            polarizations, nan=0, posinf=np.inf, neginf=-np.inf
         )
-        polarization = sum_unscaled + sum_scaled
+        # sum and give unit
+        polarization = Quantity(polarizations.sum(axis=-1), u.dimensionless_unscaled)
         # done
         return polarization
 
@@ -2681,7 +2676,7 @@ class Duan2010(Model):
         nu: Quantity["frequency"],
         freqmin: Quantity["frequency"] = Quantity(0.1, "MHz"),
         freqmax: Quantity["frequency"] = Quantity(4, "THz"),
-        freqstep: Quantity["frequency"] = Quantity(1, "GHz"),
+        freqstep: Quantity["frequency"] = Quantity(0.1, "GHz"),
     ):
         """
         Computes the real part of the relative permittivity by integrating
