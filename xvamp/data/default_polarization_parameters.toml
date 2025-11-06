@@ -1,4 +1,4 @@
-# Polarization parameters written by XVAMP on 2025-11-06T12:00:27+01:00
+# Polarization parameters written by XVAMP on 2025-11-06T18:44:51+01:00
 
 # Each following table describes the parameter set for a
 # given species by describing its type and then all
@@ -58,9 +58,9 @@ A_mu = 0.0
 [OCS]
 __name__ = "Pitzer1983Parameters"
 mu = [7.1521e-19, "Fr cm"]
-alpha_T = [1.9828734752010794e-22, "cm3"]
+alpha_T = [7.185706532134276e-24, "cm3"]
 
 [SO2]
 __name__ = "Pitzer1983Parameters"
 mu = [1.633e-18, "Fr cm"]
-alpha_T = [5.6551475114495064e-24, "cm3"]
+alpha_T = [5.801618028699866e-24, "cm3"]
