@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from numpy.typing import NDArray
 from pandas import DataFrame
+from scipy.integrate import cumulative_trapezoid
 from astropy.units import Quantity, UnitConversionError
 from astropy.table import Table, QTable
 
@@ -638,3 +639,44 @@ def geometric_range_from_central_angle(
         + radius_terrain**2
         - 2 * radius_platform * radius_terrain * np.cos(central_angle)
     )
+
+
+def get_brightness_temperature(
+    altitude: Quantity["length"],
+    temperature: Quantity["temperature"],
+    absorption: Quantity["dB/km"],
+    theta: Quantity["angle"],
+) -> Quantity["temperature"]:
+    """
+    Calculate the brightness temperature from the temperature and absorption
+    profiles.
+
+    Parameters
+    ----------
+    altitude
+        Altitude values of the profiles
+    temperature
+        Temperature profile
+    absorption
+        Absorption coefficient profile
+    theta
+        Observer angle
+
+    Returns
+    -------
+        Brightness temperature
+    """
+    # force units
+    altitude_km = altitude.to("km").value
+    T_K = temperature.to("K").value
+    absorption_dB_km = absorption.to("dB/km").value
+    # integrate
+    cos_theta = np.cos(theta)
+    tau = cumulative_trapezoid(absorption_dB_km[::-1], x=altitude_km[::-1], initial=0)
+    tau = -tau[::-1]
+    factor1 = np.exp(-tau / cos_theta)
+    T_up = np.trapezoid(absorption_dB_km * T_K * factor1, x=altitude_km) / cos_theta
+    factor2 = np.exp(-np.trapezoid(absorption_dB_km, x=altitude_km) / cos_theta)
+    T_brightness = T_K[0] * factor2 + T_up
+    # done
+    return Quantity(T_brightness, "K")
