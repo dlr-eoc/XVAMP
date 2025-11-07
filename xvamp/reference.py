@@ -887,6 +887,32 @@ class KolodnerSteffes1998(Reference):
         return eps_prime_r, rho
 
 
+class Magellan3212(Reference):
+    """
+    Reference class that provides the reference profiles from the Magellan
+    orbit no. 3212.
+    """
+
+    BASEFOLDER = "magellan"
+    """ Base folder for data """
+
+    TABLES = ["refraction", "absorption"]
+    """ Table names to load """
+
+    def __init__(self) -> None:
+        """
+        Initialize the model from the raw data.
+        """
+        # parent class
+        super().__init__()
+
+        # get local installation folder paths
+        datafolder = res_files(data) / self.BASEFOLDER
+
+        # load raw data files
+        self.tables = {t: read_unit_csv(datafolder / f"{t}.csv") for t in self.TABLES}
+
+
 class Marcq2006(Reference):
     """
     Reference class that provides the reference profiles from :cite:t:`marcq2006`.
@@ -1299,6 +1325,8 @@ keating1985 = Keating1985()
 """ Preloaded :class:`~Keating1985` dataset """
 kolodnersteffes1998 = KolodnerSteffes1998()
 """ Preloaded :class:`~KolodnerSteffes1998` dataset """
+magellan3212 = Magellan3212()
+""" Preloaded :class:`~Magellan3212` dataset """
 marcq2006 = Marcq2006()
 """ Preloaded :class:`~Marcq2006` dataset """
 paetzold2007 = Paetzold2007()
