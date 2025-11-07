@@ -719,7 +719,7 @@ class Duan2010(Model):
             density for the 0-100 km altitude range, or assume the ideal gas law.
             This has no effect on the model, since all species quantities are
             derived from the pressure profile, which is directly loaded from
-            :cite:t:`seiff1985` and :cit:t:`zasova2006`.
+            :cite:t:`seiff1985` and :cite:t:`zasova2006`.
         use_keating_temp_press_above100km
             Whether to use the temperature profile from :cite:t:`keating1985`
             above 100 km, and get its matching pressure profile from the

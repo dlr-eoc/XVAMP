@@ -94,7 +94,7 @@ This functionality is provided as part of the
 :func:`~xvamp.utils.geometric_range_from_central_angle` functions.
 
 For more information about the usage of the code, please see
-:doc:`the Quickstart Notebook </scripts/quickstart>` and the
+:doc:`the Quick Start Notebook </scripts/quickstart>` and the
 :doc:`API description </xvamp>` itself. The remainder of this document is focused on
 deviations and improvements from the :cite:t:`duan2010` study.
 
@@ -163,3 +163,97 @@ fully finalized yet.*
 .. note::
 
    This should have a negligible impact on the final delay or attenuation values.
+
+Remark on polarization notation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To prevent confusion when comparing XVAMP to the paper when it comes to the computation
+of the polarization, the following is a quick recap of how the polarization terms
+are computed for each species and then combined.
+
+We recall eq. (4):
+
+.. math::
+   
+   P_\text{mix} = \sum_i \Phi_i^* P_i \left( T, \frac{\rho_{r,mix}}{\nu_i^*} \right)
+
+as well as the two main equations used to derive polarizations, the one from
+:cite:t:`harvey2005`, eq. (8), using the virial expansion, reproduced partially in
+eq. (8) in :cite:t:`duan2010`:
+
+.. math:: \frac{P}{\rho} = A_\epsilon + A_\mu / T + B_\epsilon \rho + C \rho^D
+
+and the one from :cite:t:`pitzer1983`, eq. (14):
+
+.. math:: P_\nu = \rho \frac{4\pi N_0}{3} \left( \alpha_T + \frac{\mu^2 g}{3kT} \right)
+
+where we have substituted :math:`\rho = d/M`.
+
+Now, inserting the virial expansion equation and the definitions for :math:`\Phi_i^*`
+and :math:`\rho_{r,mix}` into the mixing equation and then simplifying yields:
+
+.. math::
+
+   P_\text{mix} = \sum_i x_i \rho_{mix} \left(
+      A_{\epsilon,i} + A_{\mu,i} / T + B_{\epsilon,i} \rho_i + C \rho_i^D \right)
+
+where :math:`x_i` is the molar fraction and :math:`\rho_{mix}` is the molar density
+of the mixture. This can therefore be further simplified by using the molar density
+of the species, :math:`\rho_i`:
+
+.. math::
+
+   P_\text{mix} = \sum_i \rho_i \left(
+      A_{\epsilon,i} + A_{\mu,i} / T + B_{\epsilon,i} \rho_i + C_i \rho_i^{D_i} \right)
+      = \sum_i \rho_i P'_i
+
+here, we have introduced the shorthand notation :math:`P'_i` for later use.
+Note how the terms inside the sum are equivalent to the :cite:t:`pitzer1983` model
+if we set
+
+.. math:: A_{\epsilon,i} = \frac{4\pi N_0}{3} \alpha_T
+
+.. math:: A_{\mu,i} = \frac{4\pi N_0 g}{9k} \mu^2
+
+.. math:: B_{\epsilon,i} = C_i = 0
+
+which in turn also implies :math:`P_\nu = P`. (This equivalence is the reason the
+:class:`~xvamp.model.Duan2010` option ``use_virial_approximation`` has no effect, it
+just changes the notation of the parameters.)
+
+For the species where we have detailed parameters according to the :cite:t:`harvey2005`
+polarization equation, we should make use of them, which means the overall model
+is nonlinear in molar density :math:`\rho`. This is one of the reasons why internally,
+XVAMP always directly computes the product of :math:`\rho_i P'_i (\rho_i)`, instead of
+first calculating :math:`P'_i (\rho_i)`, and then later scaling it by :math:`\rho_i`.
+The other reason is the benefit that the :math:`\rho_i P'_i (\rho_i)` formulation
+(compared to the :math:`\Phi_i^* P_i \left( T, \frac{\rho_{r,mix}}{\nu_i^*} \right)`
+notation) does not require the knowledge of any characteristic volumes.
+
+On the coding side, both types of describing the polarization parameters are
+implemented:
+
+- :cite:t:`harvey2005` formulation: :meth:`~xvamp.model.Duan2010.eq8` to evaluate,
+  and :meth:`~xvamp.model.Duan2010.A_epsilon_from_eq8` to estimate :math:`A_\epsilon`
+  from a reference polarization.
+- :cite:t:`pitzer1983` formulation: :meth:`~xvamp.model.Duan2010.eq14` to evaluate,
+  and :meth:`~xvamp.model.Duan2010.alpha_T_from_eq14` to estimate :math:`\alpha_T`
+  from a reference polarization.
+
+The polarization parameters are evaluted according to the format they're in inside
+:meth:`~xvamp.model.Duan2010.evaluate_polarization_parameters`, and simply summed
+together (since their relative importance to the mixture polarization has already
+been taken into account) in :meth:`~xvamp.model.Duan2010.sum_polarizations`.
+
+Limitations
+^^^^^^^^^^^
+
+There are many assumptions made in the model, most of which are described in the paper.
+Some others, however, come from the implementation. The following is a
+**non-exhaustive** list of those.
+
+- There is currently no check being made that all species molar fractions add up to
+  one (or equivalently, that the sum of all species mass densities equals the total
+  mass density). Furthermore, the cloud mass density is considered "outside" the other
+  species mass densities, i.e., it is not derived from H2O or H2SO4 abundances in the
+  profile, nor does it change when H2O or H2SO4 changes.
