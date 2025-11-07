@@ -18,6 +18,7 @@ dependencies = [
     "matplotlib>=3.10",
     "cmcrameri>=1.9",
     "ipykernel",
+    "tomlkit",
 ]
 
 [project.optional-dependencies]
@@ -35,4 +36,4 @@ docs = [
 packages = ["xvamp"]
 
 [tool.setuptools.package-data]
-xvamp = ["data/*/*.md", "data/*/*.txt", "data/*/*.csv", "data/*/*.cat"]
+xvamp = ["data/*/*.md", "data/*/*.txt", "data/*/*.csv", "data/*/*.cat", "data/*.toml"]

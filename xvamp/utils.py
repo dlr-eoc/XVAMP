@@ -4,17 +4,22 @@ Utility module for the atmospheric model.
 
 # standard imports
 from typing import Any
+from datetime import datetime
+from importlib.resources import files as res_files
 import astropy.units as u
 import numpy as np
+import tomlkit as tok
 from dataclasses import dataclass, field
 from pathlib import Path
 from numpy.typing import NDArray
 from pandas import DataFrame
+from scipy.integrate import cumulative_trapezoid
 from astropy.units import Quantity, UnitConversionError
 from astropy.table import Table, QTable
 
 # package imports
-from .constants import HEADERPATTERN, VENUS_RADIUS
+from . import data
+from .constants import *
 
 # type shorthands
 float_or_array = float | NDArray[np.double]
@@ -83,6 +88,188 @@ def read_unit_fwf(
     data = np.genfromtxt(path, dtype=formats, delimiter=widths, encoding="utf8")
     # build QTable
     return QTable(data, names=names, units=units)
+
+
+@dataclass
+class HarveyLemmon2005Parameters:
+    """
+    Parameters for mixture components from :cite:t:`harvey2005`,
+    as represented in :cite:t:`duan2010`, Table 1 for eq. (8).
+    Parameters are NOT converted to astropy :class:`~astropy.units.Quantity`
+    because of the unknown exponent.
+    """
+
+    a0: float = 0
+    """ [cm^3/mol] """
+    a1: float = 0
+    """ [cm^3/mol] """
+    b0: float = 0
+    """ [cm^6/mol^2] """
+    b1: float = 0
+    """ [cm^6/mol^2] """
+    c0: float = 0
+    """ [cm^(3(D+1))/mol^-(D+1)] """
+    c1: float = 0
+    """ [cm^(3(D+1))/mol^-(D+1)] """
+    D: float = 0
+    """ [-] """
+    T0: float = 273.16
+    """ Temperature [K] """
+    A_mu: float = 0
+    """ Dipolar term in the virial expansion [cm^3 K/mol] """
+
+    @staticmethod
+    def get_A_mu(mu: Quantity) -> float_or_array:
+        """
+        Compute the dipolar term in the dielectric virial expansion,
+        assuming CGS units in the input, but SI in the output.
+
+        Parameters
+        ----------
+        mu
+            Permanent dipole moment [esu cm]
+
+        Returns
+        -------
+            Dipolar term in the virial expansion [cm^3 K/mol]
+        """
+        return ((4 * np.pi * AVOGADRO * mu**2) / (9 * BOLTZMANN)).to("cm3 K/mol").value
+
+
+@dataclass
+class Pitzer1983Parameters:
+    """
+    Parameters for the :cite:t:`pitzer1983` model to calculate the polarization
+    per molar volume as given by :cite:t:`duan2010` on p. 5, eq. (14).
+    """
+
+    mu: Quantity[ESU_CM]
+    """ Molecular dipole moment [esu cm = 1e18 D] """
+    alpha_T: Quantity["cm3"]
+    """ Molecular polarizability [cm^3] """
+
+
+@dataclass
+class BenReuvenParameters:
+    """
+    Parameters for the Ben-Reuven line shape function, following the
+    notation from :cite:t:`duan2010`, eqs. (27-32) on p. 10f.
+    """
+
+    T_0: Quantity["K"]
+    """ Reference temperature of broadening coefficients [K] """
+    gamma_min_maj: Quantity["MHz/torr"]
+    """ Foreign-broadened linewidth parameter [MHz/torr] """
+    gamma_min_min: Quantity["MHz/torr"]
+    """ Self-broadened linewidth parameter [MHz/torr] """
+    zeta_min_maj: Quantity["MHz/torr"]
+    """ Foreign-coupling parameter [MHz/torr] """
+    zeta_min_min: Quantity["MHz/torr"]
+    """ Self-coupling linewidth parameter [MHz/torr] """
+    delta_min: Quantity["MHz/torr"]
+    """ Frequency shift parameter [MHz/torr] """
+    m: float
+    """ Temperature dependence of the coupling [-] """
+    n: float
+    """ Temperature dependence of the linewidth [-] """
+
+
+def write_polarization_parameters(
+    polarization_parameters: dict[
+        str, HarveyLemmon2005Parameters | Pitzer1983Parameters
+    ],
+    filename: str | Path,
+):
+    """
+    Write a TOML file containing all the polarization parameters.
+
+    Parameters
+    ----------
+    polarization_parameters
+        Dictionary that containes the parameter objects for each species
+    filename
+        Full file name to write the polarization parameters to.
+    """
+    # get current time
+    tz = datetime.now().astimezone().tzinfo
+    now = datetime.now(tz).isoformat(timespec="seconds")
+    # start document with general information
+    doc = tok.document()
+    doc.add(tok.comment(f"Polarization parameters written by XVAMP on {now}"))
+    doc.add(tok.nl())
+    doc.add(tok.comment("Each following table describes the parameter set for a"))
+    doc.add(tok.comment("given species by describing its type and then all"))
+    doc.add(tok.comment("individual parameters required by the set type."))
+    # loop over species
+    for spec in sorted(polarization_parameters.keys()):
+        # get parameter set
+        pp = polarization_parameters[spec]
+        # create new table
+        tab = tok.table()
+        # write class type
+        tab["__name__"] = type(pp).__name__
+        # loop over individual parameters
+        for k, v in pp.__dict__.items():
+            # save with units if it has one
+            if isinstance(v, Quantity):
+                tab[k] = [float(v.value), str(v.unit)]
+            else:
+                tab[k] = float(v)
+        # add to document
+        doc[spec] = tab
+    # write to file
+    with open(filename, mode="w") as fp:
+        tok.dump(doc, fp)
+    # done
+
+
+def read_polarization_parameters(
+    filename: str | Path | None = None,
+) -> dict[str, HarveyLemmon2005Parameters | Pitzer1983Parameters]:
+    """
+    Read a TOML file containing all the polarization parameters.
+
+    Parameters
+    ----------
+    filename
+        Full file name to read the polarization parameters from.
+        If ``None``, the XVAMP defaults will be loaded.
+
+    Returns
+    -------
+        Dictionary that containes the parameter objects for each species
+    """
+    # check if we should load defaults
+    if filename is None:
+        filename = res_files(data) / "default_polarization_parameters.toml"
+    # load file
+    with open(filename, mode="r") as fp:
+        doc = tok.load(fp)
+    # unwrap TOML object
+    doc = doc.unwrap()
+    # initialize empty dictionary
+    polarization_parameters = {}
+    # loop over tables
+    for spec, pp in doc.items():
+        # get type
+        t = pp.pop("__name__")
+        match t:
+            case "HarveyLemmon2005Parameters":
+                parclass = HarveyLemmon2005Parameters
+            case "Pitzer1983Parameters":
+                parclass = Pitzer1983Parameters
+            case _:
+                raise ValueError(
+                    f"Unrecognized parameter class {t} in file '{filename}'."
+                )
+        # convert parameters into Quantities if necessary
+        for k, v in pp.items():
+            if isinstance(v, list):
+                pp[k] = Quantity(v[0], v[1])
+        # instantiate parameter set and save to dictionary
+        polarization_parameters[spec] = parclass(**pp)
+    # done
+    return polarization_parameters
 
 
 def fill_df(
@@ -452,3 +639,44 @@ def geometric_range_from_central_angle(
         + radius_terrain**2
         - 2 * radius_platform * radius_terrain * np.cos(central_angle)
     )
+
+
+def get_brightness_temperature(
+    altitude: Quantity["length"],
+    temperature: Quantity["temperature"],
+    absorption: Quantity["dB/km"],
+    theta: Quantity["angle"],
+) -> Quantity["temperature"]:
+    """
+    Calculate the brightness temperature from the temperature and absorption
+    profiles.
+
+    Parameters
+    ----------
+    altitude
+        Altitude values of the profiles
+    temperature
+        Temperature profile
+    absorption
+        Absorption coefficient profile
+    theta
+        Observer angle
+
+    Returns
+    -------
+        Brightness temperature
+    """
+    # force units
+    altitude_km = altitude.to("km").value
+    T_K = temperature.to("K").value
+    absorption_dB_km = absorption.to("dB/km").value
+    # integrate
+    cos_theta = np.cos(theta)
+    tau = cumulative_trapezoid(absorption_dB_km[::-1], x=altitude_km[::-1], initial=0)
+    tau = -tau[::-1]
+    factor1 = np.exp(-tau / cos_theta)
+    T_up = np.trapezoid(absorption_dB_km * T_K * factor1, x=altitude_km) / cos_theta
+    factor2 = np.exp(-np.trapezoid(absorption_dB_km, x=altitude_km) / cos_theta)
+    T_brightness = T_K[0] * factor2 + T_up
+    # done
+    return Quantity(T_brightness, "K")

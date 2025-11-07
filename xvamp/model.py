@@ -8,17 +8,24 @@ import numpy as np
 import pandas as pd
 import astropy.units as u
 import astropy.table as astrotable
+from pathlib import Path
 from typing import Tuple
 from collections.abc import Callable
 from astropy.units import Quantity, Unit
-from dataclasses import dataclass
 from numpy.typing import NDArray
 from numpy.polynomial import Polynomial
 from scipy.integrate import cumulative_trapezoid
 
 # package imports
 from .constants import *
-from .utils import float_or_array, fill_df
+from .utils import (
+    float_or_array,
+    fill_df,
+    read_polarization_parameters,
+    HarveyLemmon2005Parameters,
+    Pitzer1983Parameters,
+    BenReuvenParameters,
+)
 from .reference import (
     cimino1982,
     duan2010figures,
@@ -32,98 +39,6 @@ from .reference import (
     seiffkeating,
     zasova2006,
 )
-
-# unit shorthands
-G_PER_MOL = u.Unit("g/mol")
-""" Unit [g/mol] """
-ESU_CM = u.Unit("esu cm")
-""" Unit [esu cm = 1e18 D] """
-
-
-@dataclass
-class HarveyLemmon2005Parameters:
-    """
-    Parameters for mixture components from :cite:t:`harvey2005`,
-    as represented in :cite:t:`duan2010`, Table 1 for eq. (8).
-    Parameters are NOT converted to astropy :class:`~astropy.units.Quantity`
-    because of the unknown exponent.
-    """
-
-    a0: float = 0
-    """ [cm^3/mol] """
-    a1: float = 0
-    """ [cm^3/mol] """
-    b0: float = 0
-    """ [cm^6/mol^2] """
-    b1: float = 0
-    """ [cm^6/mol^2] """
-    c0: float = 0
-    """ [cm^(3(D+1))/mol^-(D+1)] """
-    c1: float = 0
-    """ [cm^(3(D+1))/mol^-(D+1)] """
-    D: float = 0
-    """ [-] """
-    T0: float = 273.16
-    """ Temperature [K] """
-    A_mu: float = 0
-    """ Dipolar term in the virial expansion [cm^3 K/mol] """
-
-    @staticmethod
-    def get_A_mu(mu: Quantity) -> float_or_array:
-        """
-        Compute the dipolar term in the dielectric virial expansion,
-        assuming CGS units in the input, but SI in the output.
-
-        Parameters
-        ----------
-        mu
-            Permanent dipole moment [esu cm]
-
-        Returns
-        -------
-            Dipolar term in the virial expansion [cm^3 K/mol]
-        """
-        return ((4 * np.pi * AVOGADRO * mu**2) / (9 * BOLTZMANN)).to("cm3 K/mol").value
-
-
-@dataclass
-class Pitzer1983Parameters:
-    """
-    Parameters for the :cite:t:`pitzer1983` model to calculate the polarization
-    per molar volume as given by :cite:t:`duan2010` on p. 5, eq. (14).
-    """
-
-    M: Quantity[G_PER_MOL]
-    """ Molecular weight [g/mol] """
-    mu: Quantity[ESU_CM]
-    """ Molecular dipole moment [esu cm = 1e18 D] """
-    alpha_T: Quantity["cm3"]
-    """ Molecular polarizability [cm^3] """
-
-
-@dataclass
-class BenReuvenParameters:
-    """
-    Parameters for the Ben-Reuven line shape function, following the
-    notation from :cite:t:`duan2010`, eqs. (27-32) on p. 10f.
-    """
-
-    T_0: Quantity["K"]
-    """ Reference temperature of broadening coefficients [K] """
-    gamma_min_maj: Quantity["MHz/torr"]
-    """ Foreign-broadened linewidth parameter [MHz/torr] """
-    gamma_min_min: Quantity["MHz/torr"]
-    """ Self-broadened linewidth parameter [MHz/torr] """
-    zeta_min_maj: Quantity["MHz/torr"]
-    """ Foreign-coupling parameter [MHz/torr] """
-    zeta_min_min: Quantity["MHz/torr"]
-    """ Self-coupling linewidth parameter [MHz/torr] """
-    delta_min: Quantity["MHz/torr"]
-    """ Frequency shift parameter [MHz/torr] """
-    m: float
-    """ Temperature dependence of the coupling [-] """
-    n: float
-    """ Temperature dependence of the linewidth [-] """
 
 
 class OnboardPolynomial:
@@ -621,122 +536,98 @@ class Model:
 # Model class that implements the Duan et al. (2010) paper
 class Duan2010(Model):
 
-    # species molar masses
-    SPEC_MOL_M = {
-        "CO2": Quantity(44.0095, G_PER_MOL),
-        "N2": Quantity(28.01340, G_PER_MOL),
-        "H2O": Quantity(18.01524, G_PER_MOL),
-        "SO2": Quantity(64.0638, G_PER_MOL),
-        "H2SO4": Quantity(98.0785, G_PER_MOL),
-        "CO": Quantity(28.0101, G_PER_MOL),
-        "OCS": Quantity(60.0751, G_PER_MOL),
-        "AR": Quantity(39.9480, G_PER_MOL),
-    }
-    """ Species molar masses [g/mol] """
+    # general constants
+    VENUS_GAS_CONSTANT = Quantity(191.4, "J/kg K")
+    """ Venus standard atmospheric gas constant (= R/M) [J/kg K] """
+    VENUS_STANDARD_CO2 = Quantity(0.965, u.dimensionless_unscaled)
+    """ Venus standard CO2 molar fraction [-] """
+    VENUS_STANDARD_N2 = Quantity(0.035, u.dimensionless_unscaled)
+    """ Venus standard N2 molar fraction [-] """
+    VENUS_MOLAR_MASS = (
+        VENUS_STANDARD_CO2 * SPEC_MOL_M["CO2"] + VENUS_STANDARD_N2 * SPEC_MOL_M["N2"]
+    ).to("kg/mol")
+    """ Venus standard atmospheric molar mass [kg/mol] """
+    TRANSITION_ATMO_IONO = Quantity(100, "km")
+    """
+    Altitude at which the computation of the real part of the relative
+    permittivity switches from the individual components in the
+    atmosphere to the overall effect of the ionosphere
+    """
 
-    # constants relating to sulfur dioxide absorption
-    EPS_PRIME_R_SO2 = Quantity(1.0099, u.dimensionless_unscaled)
-    """ X-band estimated dielectric constant of SO2 at 1 atm and 0 °C"""
-    P_SO2 = Quantity(101325, "Pa")
-    """ Pressure at which the dielectric constant for SO2 was calculated """
-    T_SO2 = Quantity(273.15, "K")
-    """ Temperature at which the dielectric constant for SO2 was calculated """
-    MU_SO2 = Quantity(1.633e-18, ESU_CM)
-    """ Permanent dipole moment of SO2 [esu cm] """
+    # constants relating to Argon (Ar)
+    MR_AR = Quantity(7e-5, u.dimensionless_unscaled)
+    """ Mixing ratio of Argon below 100 km from von :cite:t:`vonzahn1985` """
+    HLP_AR = HarveyLemmon2005Parameters(4.1414, 0.0, 1.597, 0.262, -117.9, 0.0, 2.1)
+    """ Mixture parameters for Ar in cgs units """
 
-    # constants relating to carbon monoxide absorption
+    # constants relating to carbon monoxide (CO)
     EPS_PRIME_R_CO = Quantity(1.000634, u.dimensionless_unscaled)
     """ X-band estimated dielectric constant of CO at 1 atm and 0 °C"""
     P_CO = Quantity(101325, "Pa")
     """ Pressure at which the dielectric constant for CO was calculated """
     T_CO = Quantity(298, "K")
     """ Temperature at which the dielectric constant for CO was calculated """
+    RHO_CO = ((P_CO) / (GAS_CONSTANT * T_CO)).decompose()
+    """ Molar density from ``P_CO`` and ``T_CO`` """
     MU_CO = Quantity(0.112e-18, ESU_CM)
     """ Permanent dipole moment of CO [esu cm] """
 
-    # constants relating to carbonyl sulfide absorption
-    EPS_PRIME_R_OCS = Quantity(1.0700658, u.dimensionless_unscaled)
-    """ X-band estimated dielectric constant of OCS at 1 atm and 0 °C"""
-    P_OCS = Quantity(101325, "Pa")
-    """ Pressure at which the dielectric constant for OCS was calculated """
-    T_OCS = Quantity(273.18, "K")
-    """ Temperature at which the dielectric constant for OCS was calculated """
-    MU_OCS = Quantity(0.71521e-18, ESU_CM)
-    """ Permanent dipole moment of OCS [esu cm] """
-
-    # constants relating to gaseous sulfuric acid absorption
-    MU_H2SO4 = Quantity(2.72e-18, ESU_CM)
-    """ Molecular dipole moment for gaseous sulfuric acid """
-    # related constants from Kolodner and Steffes (1998)
-    KS_N_H2SO4 = Quantity((340.64 + 245.36) / 2, "Nunit")
-    """
-    Refractivity of the gaseous sulfuric acid in the experiment of
-    :cite:t:`kolodner1998`
-    """
-    KS_EPS_PRIME_R_H2SO4 = (KS_N_H2SO4.to(u.dimensionless_unscaled)) ** 2
-    """
-    Real part of the relative permittivity in the experiment of
-    :cite:t:`kolodner1998`
-    """
-    KS_D_H2SO4_L = Quantity(1.8305, "g/ml")
-    """
-    Mass density of the sulfuric acid solution before it evaporates
-    in the experiment of :cite:t:`kolodner1998`
-    """
-    KS_DISS_H2SO4 = 0.461
-    """
-    Dissociation constant of vaporized H2SO4
-    in the experiment of :cite:t:`kolodner1998`
-    """
-    KS_V_H2SO4 = Quantity((4.12 + 3.18) / 2, "cm3")
-    """
-    Volume of the H2SO4 solution which vaporizes
-    in the experiment of :cite:t:`kolodner1998`
-    """
-    KS_NVAP = (KS_V_H2SO4 * KS_D_H2SO4_L / SPEC_MOL_M["H2SO4"]).decompose()
-    """
-    Number of moles of pure H2SO4 liquid which vaporizes
-    in the experiment of :cite:t:`kolodner1998`
-    """
-    KS_NMOL_H2SO4 = KS_NVAP * (1 - KS_DISS_H2SO4)
-    """
-    Number of moles of H2SO4 vapor
-    in the experiment of :cite:t:`kolodner1998`
-    """
-    KS_V_VESSEL = Quantity(31, "l")
-    """
-    Volume of the pressure vessel
-    in the experiment of :cite:t:`kolodner1998`
-    """
-    KS_RHO_H2SO4 = (KS_NMOL_H2SO4 / KS_V_VESSEL).to("mol/cm3")
-    """
-    Molar density of gaseous sulfuric acid in the experiment of
-    :cite:t:`kolodner1998`
-    """
-    KS_T_H2SO4 = Quantity(553, "K")
-    """ Temperature of the experiment of :cite:t:`kolodner1998` """
-
-    # constant Argon content
-    MR_AR = Quantity(7e-5, u.dimensionless_unscaled)
-    """ Mixing ratio of Argon below 100 km from von :cite:t:`vonzahn1985` """
-
-    # species parameters
-    MC_CO2 = HarveyLemmon2005Parameters(
+    # constants relating to carbon dioxide (CO2)
+    HLP_CO2 = HarveyLemmon2005Parameters(
         7.3455, 0.00335, 83.93, 145.1, -578.8, -1012.0, 1.55
     )
     """ Mixture parameters for CO2 in cgs units """
-    MC_N2 = HarveyLemmon2005Parameters(
-        4.3872, 0.00226, 2.206, 1.135, -169.0, -35.83, 2.1
-    )
-    """ Mixture parameters for N2 in cgs units """
-    MC_AR = HarveyLemmon2005Parameters(4.1414, 0.0, 1.597, 0.262, -117.9, 0.0, 2.1)
-    """ Mixture parameters for Ar in cgs units """
+
+    # constants relating to water vapor (H2O)
     PP_water_vapor = Pitzer1983Parameters(
-        Quantity(18.01524, G_PER_MOL),
         Quantity(1.84e-18, ESU_CM),
         alpha_T=Quantity(1.444e-24, "cm3"),
     )
     """ Polarization parameters for water vapor """
+
+    # constants relating to gaseous sulfuric acid (H2SO4)
+    # are all defined in the KolodnerSteffes1998 class
+
+    # constants relating to nitrogen (N2)
+    HLP_N2 = HarveyLemmon2005Parameters(
+        4.3872, 0.00226, 2.206, 1.135, -169.0, -35.83, 2.1
+    )
+    """ Mixture parameters for N2 in cgs units """
+
+    # constants relating to carbonyl sulfide (OCS or COS)
+    EPS_PRIME_R_INF_OCS = Quantity(1.0031248, u.dimensionless_unscaled)
+    """ Estimated dielectric constant of SO2 at infinite frequency """
+    P_OCS = Quantity(101325, "Pa")
+    """ Pressure at which the dielectric constant for OCS was calculated """
+    T_OCS = Quantity(273.18, "K")
+    """ Temperature at which the dielectric constant for OCS was calculated """
+    RHO_OCS = ((P_OCS) / (GAS_CONSTANT * T_OCS)).decompose()
+    """ Molar density from ``P_OCS`` and ``T_OCS`` """
+    MU_OCS = Quantity(0.71521e-18, ESU_CM)
+    """ Permanent dipole moment of OCS [esu cm] """
+    BR_OCS_CO2 = BenReuvenParameters(
+        T_0=Quantity(300, "K"),
+        gamma_min_maj=Quantity(7.2, "MHz/torr"),
+        gamma_min_min=Quantity(16, "MHz/torr"),
+        zeta_min_maj=Quantity(0, "MHz/torr"),
+        zeta_min_min=Quantity(0, "MHz/torr"),
+        delta_min=Quantity(0, "MHz/torr"),
+        m=0.85,
+        n=0.85,
+    )
+    """ Ben-Reuven line parameters for OCS in CO2 """
+
+    # constants relating to sulfur dioxide (SO2)
+    EPS_PRIME_R_INF_SO2 = Quantity(1.00587032, u.dimensionless_unscaled)
+    """ Estimated dielectric constant of SO2 at infinite frequency """
+    P_SO2 = Quantity(101325, "Pa")
+    """ Pressure at which the dielectric constant for SO2 was calculated """
+    T_SO2 = Quantity(273.15, "K")
+    """ Temperature at which the dielectric constant for SO2 was calculated """
+    RHO_SO2 = ((P_SO2) / (GAS_CONSTANT * T_SO2)).decompose()
+    """ Molar density from ``P_SO2`` and ``T_SO2`` """
+    MU_SO2 = Quantity(1.633e-18, ESU_CM)
+    """ Permanent dipole moment of SO2 [esu cm] """
     BR_SO2_CO2 = BenReuvenParameters(
         T_0=Quantity(300, "K"),
         gamma_min_maj=Quantity(7.2, "MHz/torr"),
@@ -748,17 +639,20 @@ class Duan2010(Model):
         n=0.85,
     )
     """ Ben-Reuven line parameters for SO2 in CO2 """
-    BR_OCS_CO2 = BenReuvenParameters(
-        T_0=Quantity(298, "K"),
-        gamma_min_maj=Quantity(4.3, "MHz/torr"),
-        gamma_min_min=Quantity(5.9, "MHz/torr"),
-        zeta_min_maj=Quantity(0, "MHz/torr"),
-        zeta_min_min=Quantity(0, "MHz/torr"),
-        delta_min=Quantity(0, "MHz/torr"),
-        m=0.7,
-        n=0.7,
-    )
-    """ Ben-Reuven line parameters for OCS in CO2 """
+
+    # other constants
+
+    # pressure extrapolation coefficients
+    EXT_PRESSURE_COEFFS = [
+        11.201473859081256,
+        0.006260686643162,
+        -9.240397971368619,
+        0.010200118486472,
+    ]
+    """
+    Coefficients fit to a douple exponential function to extrapolate
+    pressure [log10(atm)] from altitude [km], taken from the reference code
+    """
 
     # Cimino (1982) Figs. 7-9 as lookup tables
     EPS_PRIME_R_H2SO4 = np.r_[
@@ -798,39 +692,9 @@ class Duan2010(Model):
     for concentrations between 0% and 100% [-]
     """
 
-    # general constants
-    VENUS_GAS_CONSTANT = Quantity(191.4, "J/kg K")
-    """ Venus standard atmospheric gas constant (= R/M) [J/kg K] """
-    VENUS_STANDARD_CO2 = Quantity(0.965, u.dimensionless_unscaled)
-    """ Venus standard CO2 molar fraction [-] """
-    VENUS_STANDARD_N2 = Quantity(0.035, u.dimensionless_unscaled)
-    """ Venus standard N2 molar fraction [-] """
-    VENUS_MOLAR_MASS = Quantity(
-        VENUS_STANDARD_CO2 * SPEC_MOL_M["CO2"] + VENUS_STANDARD_N2 * SPEC_MOL_M["N2"],
-        "kg/mol",
-    )
-    """ Venus standard atmospheric molar mass [kg/mol] """
-    TRANSITION_ATMO_IONO = Quantity(100, "km")
-    """
-    Altitude at which the computation of the real part of the relative
-    permittivity switches from the individual components in the
-    atmosphere to the overall effect of the ionosphere
-    """
-
-    # pressure extrapolation coefficients
-    EXT_PRESSURE_COEFFS = [
-        11.201473859081256,
-        0.006260686643162,
-        -9.240397971368619,
-        0.010200118486472,
-    ]
-    """
-    Coefficients fit to a douple exponential function to extrapolate
-    pressure [log10(atm)] from altitude [km]
-    """
-
     def __init__(
         self,
+        use_compressible_gas: bool = True,
         use_keating_temp_press_above100km: bool = False,
         use_keating_co_co2_n2_above_100km: bool = False,
         use_kolste_h2so4: bool = False,
@@ -841,6 +705,7 @@ class Duan2010(Model):
         use_virial_approximation: bool = True,
         use_cimino_clouds: bool = True,
         use_cimino_fitted_lookup: bool = False,
+        load_polarization_parameters: bool | str | Path = True,
         min_altitude_spacing: Quantity = Quantity(1, "km"),
     ) -> None:
         """
@@ -849,6 +714,12 @@ class Duan2010(Model):
 
         Parameters
         ----------
+        use_compressible_gas
+            Whether to use the gas compressibility factor when deriving the mass
+            density for the 0-100 km altitude range, or assume the ideal gas law.
+            This has no effect on the model, since all species quantities are
+            derived from the pressure profile, which is directly loaded from
+            :cite:t:`seiff1985` and :cite:t:`zasova2006`.
         use_keating_temp_press_above100km
             Whether to use the temperature profile from :cite:t:`keating1985`
             above 100 km, and get its matching pressure profile from the
@@ -896,7 +767,7 @@ class Duan2010(Model):
             Whether to use the polarization and absorption equations for the clouds in
             :cite:t:`cimino1982`, eq. (10) and (16), or sections 2.1.5 and 2.2.5
             in :cite:t:`duan2010`.
-            See the notes on the importance of this flag at
+            See the notes on the importance of this parameter at
             :ref:`implementation:Cloud polarization and absorption`.
         use_cimino_fitted_lookup
             Whether to estimate the complex permittivity of gaseous H2SO4 from
@@ -906,6 +777,11 @@ class Duan2010(Model):
             model is flawed. Regardless, this options only has a range delay effect
             on the sub-micrometer scale, and an effect on the two-way attenuation
             on the millidecibel scale.
+        load_polarization_parameters
+            By default, the polarization parameters are loaded from a prepackaged
+            configuration file (in ``"data/default_polarization_parameters.toml"``).
+            If set to ``False``, they are recomputed with the current settings.
+            If set to a filename, the parameters are loaded from there.
         min_altitude_spacing
             Minimum height spacing between altitude nodes.
         """
@@ -917,16 +793,17 @@ class Duan2010(Model):
         # part 1: physical quantities
 
         # temperature and pressure
-        # TODO: also mass density instead of from ideal gas law later
-        altitude, temperature, pressure = Duan2010.get_tp(
-            use_keating_temp_press_above100km=use_keating_temp_press_above100km
+        altitude, temperature, pressure, mass_density = Duan2010.get_tpd(
+            use_compressible_gas=use_compressible_gas,
+            use_keating_temp_press_above100km=use_keating_temp_press_above100km,
+        )
+        atpd = [altitude, temperature, pressure] + (
+            [mass_density] if use_compressible_gas else []
         )
         # join the tables as a pandas DataFrame so we can interpolate easier
-        physquant_df = astrotable.hstack([altitude, temperature, pressure]).to_pandas(
-            index="altitude"
-        )
+        physquant_df = astrotable.hstack(atpd).to_pandas(index="altitude")
         # save units
-        units |= {qt.info.name: qt.unit for qt in [altitude, temperature, pressure]}
+        units |= {qt.info.name: qt.unit for qt in atpd}
 
         # part 2: compositional profiles
 
@@ -1004,6 +881,8 @@ class Duan2010(Model):
             for s in all_species + ["pressure", cloud_mass_density.info.name]
             if s not in intp_quants
         ]
+        if use_compressible_gas:
+            log_list.append("mass density")
         # define extrapolating behavior
         ffill_list = ["temperature", "CO2", "N2"]
         bfill_list = ["CO2", "N2", "SO2", "CO"]
@@ -1031,6 +910,8 @@ class Duan2010(Model):
         self.altitude = bigqt[altitude.info.name]
         self.temperature = bigqt[temperature.info.name]
         self.pressure = bigqt[pressure.info.name]
+        if use_compressible_gas:
+            self.mass_density = bigqt[mass_density.info.name]
         # mixture quantities
         self.electron_density = bigqt[el_density.info.name]
         # component quantities
@@ -1042,8 +923,8 @@ class Duan2010(Model):
         # part 6: computation of total and per-species densities
 
         self.update_densities()
-        # sets self.[mass_density,number_density,molar_density] and
-        # self.[molar_densities,mass_densities]
+        # sets self.mass_density (if not already present), self.number_density,
+        # self.molar_density, and self.[molar_densities,mass_densities]
 
         # part 7: get individual contributions to polarization and absorption
         # for each species and the clouds in the atmosphere, as well as the
@@ -1051,9 +932,19 @@ class Duan2010(Model):
 
         # the computation of the polarization parameters is independent of
         # the loaded atmospheric profiles
-        self.polarization_parameters = Duan2010.get_polarization_parameters(
-            add_ar=add_ar, use_virial_approximation=use_virial_approximation
-        )
+
+        # check if we should recompute them
+        if load_polarization_parameters == False:
+            self.polarization_parameters = Duan2010.get_polarization_parameters(
+                add_ar=add_ar, use_virial_approximation=use_virial_approximation
+            )
+        # or load them (either the defaults or from a file)
+        else:
+            self.polarization_parameters = read_polarization_parameters(
+                None
+                if load_polarization_parameters == True
+                else load_polarization_parameters
+            )
 
         # everything else depends on the current state
         self.update_pol_absorp_atmosphere(
@@ -1080,30 +971,34 @@ class Duan2010(Model):
         """
         Compute the total and specific mass, number, and molar densities
         from the total pressure and temperature, and the molar fractions.
-
-        Uses the ideal gas law, even though we know from Tables 1-1 and 1-2
-        of :cite:t:`seiff1985` that there's a small variation in the
-        incompressibility.
+        If the mass density has not been set yet, it is derived from the
+        ideal gas law.
 
         Notes
         -----
         Reads: :attr:`~Model.pressure`, :attr:`~Model.temperature`,
         :attr:`~Model.molar_fractions`
 
-        Writes: :attr:`~Model.number_density`, :attr:`~Model.mass_density`,
-        :attr:`~Model.mass_densities`, :attr:`~Model.molar_density`,
-        and :attr:`~Model.molar_densities`
+        Writes: :attr:`~Model.number_density`, :attr:`~Model.mass_densities`,
+        :attr:`~Model.molar_density`, :attr:`~Model.molar_densities`, and
+        (if not already present) :attr:`~Model.mass_density`
         """
 
         # total densities
-        # mass density
-        self.mass_density = (
-            self.pressure / (Duan2010.VENUS_GAS_CONSTANT * self.temperature)
-        ).decompose()
-        # number density
-        self.number_density = (
-            self.mass_density * AVOGADRO / Duan2010.VENUS_MOLAR_MASS
-        ).decompose()
+        try:
+            # number density
+            self.number_density = (
+                self.mass_density * AVOGADRO / Duan2010.VENUS_MOLAR_MASS
+            ).decompose()
+        except AttributeError as e:  # try again if mass_density was not found
+            # mass density
+            self.mass_density = (
+                self.pressure / (Duan2010.VENUS_GAS_CONSTANT * self.temperature)
+            ).decompose()
+            # number density
+            self.number_density = (
+                self.mass_density * AVOGADRO / Duan2010.VENUS_MOLAR_MASS
+            ).decompose()
         # molar density
         self.molar_density = (
             self.pressure / (GAS_CONSTANT * self.temperature)
@@ -1121,9 +1016,7 @@ class Duan2010(Model):
                     self.molar_fractions[c] * self.molar_density
                 ).decompose()
                 # mass densities
-                mass_densities[c] = (
-                    molar_densities[c] * self.SPEC_MOL_M[c]
-                ).decompose()
+                mass_densities[c] = (molar_densities[c] * SPEC_MOL_M[c]).decompose()
         except NameError as e:
             # if molar_fractions are missing, then we simply skip
             # the computation, but otherwise something's wrong
@@ -1267,14 +1160,25 @@ class Duan2010(Model):
         # done
 
     @staticmethod
-    def get_tp(
+    def get_tpd(
+        use_compressible_gas: bool = True,
         use_keating_temp_press_above100km: bool = False,
-    ) -> Tuple[Quantity["length"], Quantity["temperature"], Quantity["pressure"]]:
+    ) -> Tuple[
+        Quantity["length"],
+        Quantity["temperature"],
+        Quantity["pressure"],
+        Quantity["mass density"] | None,
+    ]:
         """
-        Follow Section  3.1 to build the temperature and pressure profiles.
+        Follow Section  3.1 to build the temperature, pressure, and mass density
+        profiles.
 
         Parameters
         ----------
+        use_compressible_gas
+            Whether to use the gas compressibility factor when deriving the mass
+            density for the 0-100 km altitude range, or assume the ideal gas law.
+            Gas compressibility is always assumed below 0 km, and never above 100 km.
         use_keating_temp_press_above100km
             Whether to use the temperature profile from :cite:t:`keating1985`
             above 100 km, and get its matching pressure profile from the
@@ -1288,10 +1192,12 @@ class Duan2010(Model):
             Temperature profile
         pressure
             Pressure profile
+        mass_density
+            Mass density profile (only if ``use_compressible_gas=True``)
         """
 
         # p. 13: "for the lower atmosphere, [...] the temperature curve at
-        # latitude of 75° in the work of Seiff et al. [1985] is used after being
+        # latitude of 75° in the work of Seiff et al. (1985) is used after being
         # increased by 3 K"
         ix_seiff_below_zasova = (
             seiff1985.tables["1-2d"]["z"] < zasova2006.tables["5"]["H"][-1]
@@ -1308,21 +1214,41 @@ class Duan2010(Model):
             seiff1985.tables["1-1"]["p"],
             seiff1985.tables["1-2d"]["p"][ix_seiff_below_zasova],
         ]
+        if use_compressible_gas:
+            dens = [
+                seiff1985.tables["1-1"]["ρ"],
+                seiff1985.tables["1-2d"]["ρ"][ix_seiff_below_zasova],
+            ]
 
         # p. 14: "In the simulation, the middle atmosphere temperature and
         # pressure profiles are using the column of Ls = 200°–270° in
-        # Table 5 of Zasova et al. [2006]"
+        # Table 5 of Zasova et al. (2006)"
         alt.append(zasova2006.tables["5"]["H"][::-1])
         temp.append(zasova2006.tables["5"]["Ls = 200°-270°, T"][::-1])
         press.append(zasova2006.tables["5"]["Ls = 200°-270°, P"][::-1])
+        # interpolate the pressure levels of Zasova et al. (2006) onto compressible
+        # density profile from Seiff et al. (1985)
+        if use_compressible_gas:
+            dens.append(
+                Quantity(
+                    np.interp(
+                        press[-1].to("bar").value,
+                        seiff1985.tables["1-2d"]["p"].to("bar").value[::-1],
+                        seiff1985.tables["1-2d"]["ρ"].value[::-1],
+                    ),
+                    seiff1985.tables["1-2d"]["ρ"].unit,
+                )
+            )
         # extrapolate to negative altitudes
-        alt_neg, temp_neg, press_neg, _ = Model.tpd_below_0km(
+        alt_neg, temp_neg, press_neg, dens_neg = Model.tpd_below_0km(
             Duan2010.VENUS_GAS_CONSTANT
         )
         # insert into list
         alt.insert(0, alt_neg)
         temp.insert(0, temp_neg)
         press.insert(0, press_neg)
+        if use_compressible_gas:
+            dens.insert(0, dens_neg)
 
         # for altitudes higher than 100 km, we can use the VIRA model from
         # Keating et al. (1985) directly from 105 km upwards
@@ -1332,8 +1258,11 @@ class Duan2010(Model):
             alt.append(keating1985.tables["night"]["ALT"][1:])
             temp.append(keating1985.tables["night"]["T"][1:])
             press.append(keating1985.tables["night"]["P"][1:])
+            if use_compressible_gas:
+                dens.append(keating1985.tables["night"]["RHO"][1:])
         # otherwise, we use a previously-fitted extrapolating function for pressure,
-        # and continue the temperature as a constant
+        # continue the temperature as a constant, and use the ideal gas law to get
+        # mass density
         else:
             extrap_alt_km = np.arange(101, 376)
             alt.append(
@@ -1362,6 +1291,8 @@ class Duan2010(Model):
                     "atm",
                 ).to(keating1985.tables["night"]["P"].unit)
             )
+            if use_compressible_gas:
+                dens.append(press[-1] / (Duan2010.VENUS_GAS_CONSTANT * temp[-1]))
 
         # combine
         altitude = np.concatenate(alt)
@@ -1373,8 +1304,15 @@ class Duan2010(Model):
         temperature.info.name = "temperature"
         pressure.info.name = "pressure"
 
+        # repeat for mass density if we extracted it
+        if use_compressible_gas:
+            mass_density = np.concatenate(dens)
+            mass_density.info.name = "mass density"
+        else:
+            mass_density = None
+
         # done
-        return altitude, temperature, pressure
+        return altitude, temperature, pressure, mass_density
 
     @staticmethod
     def get_composition(
@@ -1692,12 +1630,12 @@ class Duan2010(Model):
         # here, we have the Harvey Lemmon parameters already
 
         # CO2
-        polarization_parameters["CO2"] = Duan2010.MC_CO2
+        polarization_parameters["CO2"] = Duan2010.HLP_CO2
         # N2
-        polarization_parameters["N2"] = Duan2010.MC_N2
+        polarization_parameters["N2"] = Duan2010.HLP_N2
         # AR, if we have it
         if add_ar:
-            polarization_parameters["AR"] = Duan2010.MC_AR
+            polarization_parameters["AR"] = Duan2010.HLP_AR
 
         # section 2.1.4: polar components
 
@@ -1706,13 +1644,25 @@ class Duan2010(Model):
         polarization_parameters["H2O"] = Duan2010.PP_water_vapor
 
         # section 2.1.4.2: SO2
-        Pnu_SO2 = Duan2010.eq2(Duan2010.EPS_PRIME_R_SO2)
+        # get real part of the permittivity from integrating through
+        # the spectral lines
+        eps_prime_r_so2 = Duan2010.eps_prime_r_from_spectral_lines(
+            Duan2010.T_SO2,
+            Duan2010.P_SO2,
+            jplspectrallines.tables["SO2"],
+            Duan2010.BR_SO2_CO2,
+            Duan2010.EPS_PRIME_R_INF_SO2,
+            VISAR_FREQUENCY,
+        )
+        # convert to polarization
+        Pnu_SO2 = Duan2010.eq2(eps_prime_r_so2)
         if use_virial_approximation:
             # get virial expansion terms
-            rho_SO2 = ((Duan2010.P_SO2) / (GAS_CONSTANT * Duan2010.T_SO2)).decompose()
             A_mu_SO2 = float(HarveyLemmon2005Parameters.get_A_mu(Duan2010.MU_SO2))
             A_epsilon_SO2 = float(
-                Duan2010.A_epsilon_from_eq8(Pnu_SO2, A_mu_SO2, rho_SO2, Duan2010.T_SO2)
+                Duan2010.A_epsilon_from_eq8(
+                    Pnu_SO2, A_mu_SO2, Duan2010.RHO_SO2, Duan2010.T_SO2
+                )
             )
             # define Harvey & Lemmon parameter set
             polarization_parameters["SO2"] = HarveyLemmon2005Parameters(
@@ -1720,33 +1670,32 @@ class Duan2010(Model):
             )
         else:
             # get molecular polarizability
-            d_SO2 = (
-                (Duan2010.P_SO2 * Duan2010.SPEC_MOL_M["SO2"])
-                / (GAS_CONSTANT * Duan2010.T_SO2)
-            ).decompose()
             alpha_T_SO2 = Duan2010.alpha_T_from_eq14(
-                d_SO2,
+                Duan2010.RHO_SO2,
                 Duan2010.T_SO2,
                 Pnu_SO2,
-                Duan2010.SPEC_MOL_M["SO2"],
                 Duan2010.MU_SO2,
             )
             # define Pitzer parameter set
             polarization_parameters["SO2"] = Pitzer1983Parameters(
-                Duan2010.SPEC_MOL_M["SO2"],
                 Duan2010.MU_SO2,
                 alpha_T_SO2,
             )
 
         # section 2.1.4.3: H2SO4 (gaseous)
         # get Pnu from the experiment of Kolodner and Steffes (1998)
-        Pnu_H2SO4 = Duan2010.eq3(Duan2010.KS_EPS_PRIME_R_H2SO4)
+        eps_prime_r_h2so4, rho_h2so4 = (
+            kolodnersteffes1998.get_eps_prime_r_and_molar_density()
+        )
+        Pnu_H2SO4 = Duan2010.eq3(eps_prime_r_h2so4)
         if use_virial_approximation:
             # get virial expansion terms
-            A_mu_H2SO4 = float(HarveyLemmon2005Parameters.get_A_mu(Duan2010.MU_H2SO4))
+            A_mu_H2SO4 = float(
+                HarveyLemmon2005Parameters.get_A_mu(kolodnersteffes1998.MU_H2SO4)
+            )
             A_epsilon_H2SO4 = float(
                 Duan2010.A_epsilon_from_eq8(
-                    Pnu_H2SO4, A_mu_H2SO4, Duan2010.KS_RHO_H2SO4, Duan2010.KS_T_H2SO4
+                    Pnu_H2SO4, A_mu_H2SO4, rho_h2so4, kolodnersteffes1998.T_H2SO4
                 )
             )
             # define Harvey & Lemmon parameter set
@@ -1755,18 +1704,15 @@ class Duan2010(Model):
             )
         else:
             # get molecular polarizability
-            d_H2SO4 = Duan2010.KS_RHO_H2SO4 * Duan2010.SPEC_MOL_M["H2SO4"]
             alpha_T_H2SO4 = Duan2010.alpha_T_from_eq14(
-                d_H2SO4,
-                Duan2010.KS_T_H2SO4,
+                rho_h2so4,
+                kolodnersteffes1998.T_H2SO4,
                 Pnu_H2SO4,
-                Duan2010.SPEC_MOL_M["H2SO4"],
-                Duan2010.MU_H2SO4,
+                kolodnersteffes1998.MU_H2SO4,
             )
             # define Pitzer parameter set
             polarization_parameters["H2SO4"] = Pitzer1983Parameters(
-                Duan2010.SPEC_MOL_M["H2SO4"],
-                Duan2010.MU_H2SO4,
+                kolodnersteffes1998.MU_H2SO4,
                 alpha_T_H2SO4,
             )
 
@@ -1774,10 +1720,11 @@ class Duan2010(Model):
         Pnu_CO = Duan2010.eq3(Duan2010.EPS_PRIME_R_CO)
         if use_virial_approximation:
             # get virial expansion terms
-            rho_CO = ((Duan2010.P_CO) / (GAS_CONSTANT * Duan2010.T_CO)).decompose()
             A_mu_CO = float(HarveyLemmon2005Parameters.get_A_mu(Duan2010.MU_CO))
             A_epsilon_CO = float(
-                Duan2010.A_epsilon_from_eq8(Pnu_CO, A_mu_CO, rho_CO, Duan2010.T_CO)
+                Duan2010.A_epsilon_from_eq8(
+                    Pnu_CO, A_mu_CO, Duan2010.RHO_CO, Duan2010.T_CO
+                )
             )
             # define Harvey & Lemmon parameter set
             polarization_parameters["CO"] = HarveyLemmon2005Parameters(
@@ -1785,32 +1732,38 @@ class Duan2010(Model):
             )
         else:
             # get molecular polarizability
-            d_CO = (
-                (Duan2010.P_CO * Duan2010.SPEC_MOL_M["CO"])
-                / (GAS_CONSTANT * Duan2010.T_CO)
-            ).decompose()
             alpha_T_CO = Duan2010.alpha_T_from_eq14(
-                d_CO,
+                Duan2010.RHO_CO,
                 Duan2010.T_CO,
                 Pnu_CO,
-                Duan2010.SPEC_MOL_M["CO"],
                 Duan2010.MU_CO,
             )
             # define Pitzer parameter set
             polarization_parameters["CO"] = Pitzer1983Parameters(
-                Duan2010.SPEC_MOL_M["CO"],
                 Duan2010.MU_CO,
                 alpha_T_CO,
             )
 
         # section 2.1.4.5: OCS
-        Pnu_OCS = Duan2010.eq2(Duan2010.EPS_PRIME_R_OCS)
+        # get real part of the permittivity from integrating through
+        # the spectral lines
+        eps_prime_r_ocs = Duan2010.eps_prime_r_from_spectral_lines(
+            Duan2010.T_OCS,
+            Duan2010.P_OCS,
+            jplspectrallines.tables["OCS"],
+            Duan2010.BR_OCS_CO2,
+            Duan2010.EPS_PRIME_R_INF_OCS,
+            VISAR_FREQUENCY,
+        )
+        # convert to polarization
+        Pnu_OCS = Duan2010.eq2(eps_prime_r_ocs)
         if use_virial_approximation:
             # get virial expansion terms
-            rho_OCS = ((Duan2010.P_OCS) / (GAS_CONSTANT * Duan2010.T_OCS)).decompose()
             A_mu_OCS = float(HarveyLemmon2005Parameters.get_A_mu(Duan2010.MU_OCS))
             A_epsilon_OCS = float(
-                Duan2010.A_epsilon_from_eq8(Pnu_OCS, A_mu_OCS, rho_OCS, Duan2010.T_OCS)
+                Duan2010.A_epsilon_from_eq8(
+                    Pnu_OCS, A_mu_OCS, Duan2010.RHO_OCS, Duan2010.T_OCS
+                )
             )
             # define Harvey & Lemmon parameter set
             polarization_parameters["OCS"] = HarveyLemmon2005Parameters(
@@ -1818,20 +1771,14 @@ class Duan2010(Model):
             )
         else:
             # get molecular polarizability
-            d_OCS = (
-                (Duan2010.P_OCS * Duan2010.SPEC_MOL_M["OCS"])
-                / (GAS_CONSTANT * Duan2010.T_OCS)
-            ).decompose()
             alpha_T_OCS = Duan2010.alpha_T_from_eq14(
-                d_OCS,
+                Duan2010.RHO_OCS,
                 Duan2010.T_OCS,
                 Pnu_OCS,
-                Duan2010.SPEC_MOL_M["OCS"],
                 Duan2010.MU_OCS,
             )
             # define Pitzer parameter set
             polarization_parameters["OCS"] = Pitzer1983Parameters(
-                Duan2010.SPEC_MOL_M["OCS"],
                 Duan2010.MU_OCS,
                 alpha_T_OCS,
             )
@@ -1850,16 +1797,15 @@ class Duan2010(Model):
         # initialize
         polarizations = astrotable.QTable()
         # loop over species
-        for comp, params in self.polarization_parameters.items():
+        for comp in self.molar_densities.keys():
+            params = self.polarization_parameters[comp]
             if isinstance(params, HarveyLemmon2005Parameters):
                 polarizations[comp] = Duan2010.eq8(
-                    self.molar_densities[comp],
-                    self.temperature,
-                    params,
+                    self.molar_densities[comp], self.temperature, params
                 )
             elif isinstance(params, Pitzer1983Parameters):
                 polarizations[comp] = Duan2010.eq14(
-                    self.mass_densities[comp], self.temperature, params
+                    self.molar_densities[comp], self.temperature, params
                 )
             else:
                 raise NotImplementedError(
@@ -2068,31 +2014,26 @@ class Duan2010(Model):
     def sum_polarizations(self) -> Quantity["dimensionless"]:
         """
         Sum the polarizations already present in the model.
-        Species that have a defined molar fraction are scaled accordingly,
-        the ones that don't are assumed to already be scaled.
+        These have all already been scaled by their volume fraction.
 
         Returns
         -------
             Total polarization of the atmospheric profile
         """
-        # get two distinct sets of species present
-        set_unscaled = set(self.polarizations.colnames) & set(
-            self.molar_fractions.colnames
-        )
-        set_scaled = set(self.polarizations.colnames) - set_unscaled
-        # sum
-        sum_unscaled = sum(
+        # convert to same scale and stack
+        polarizations = np.stack(
             [
-                np.nan_to_num(
-                    (self.molar_fractions[c] * self.polarizations[c]).decompose()
-                )
-                for c in set_unscaled
-            ]
+                self.polarizations[c].to(u.dimensionless_unscaled)
+                for c in self.polarizations.colnames
+            ],
+            axis=-1,
         )
-        sum_scaled = sum(
-            [np.nan_to_num(self.polarizations[c].decompose()) for c in set_scaled]
+        # replace (only) NaNs
+        polarizations = np.nan_to_num(
+            polarizations, nan=0, posinf=np.inf, neginf=-np.inf
         )
-        polarization = sum_unscaled + sum_scaled
+        # sum and give unit
+        polarization = Quantity(polarizations.sum(axis=-1), u.dimensionless_unscaled)
         # done
         return polarization
 
@@ -2175,7 +2116,7 @@ class Duan2010(Model):
         fluid: HarveyLemmon2005Parameters,
     ) -> Quantity:
         """
-        Calculate the polarization per molar volume using the dielectric
+        Calculate the total polarization using the dielectric
         virial expansion as described in eq. (8) from :cite:t:`duan2010`.
 
         Parameters
@@ -2189,7 +2130,7 @@ class Duan2010(Model):
 
         Returns
         -------
-            Polarization per molar volume [-]
+            Polarization [-]
         """
         # convert to cm^3 and K units
         # as required by HarveyLemmon2005Parameters
@@ -2237,7 +2178,7 @@ class Duan2010(Model):
         return A_epsilon.to("cm3/mol").value
 
     @staticmethod
-    def _kirkwood_correlation_cgs(
+    def kirkwood_correlation_cgs(
         d: float_or_array,
         T: float_or_array,
         p0: float = 2.68,
@@ -2266,46 +2207,33 @@ class Duan2010(Model):
 
     @staticmethod
     def eq14(
-        d: Quantity,
+        rho: Quantity,
         T: Quantity,
         pp: Pitzer1983Parameters,
-        g_is_1: bool = True,
+        g: float = 1.0,
     ) -> Quantity:
         """
-        Calculate the polarization per molar volume as described in
+        Calculate the total polarization as described in
         eq. (14), assuming we know the molecular polarizability and
         molecular dipole moment.
 
         Parameters
         ----------
-        d
-            Mass density [kg/m^3]
+        rho
+            Molar density [mol/m^3]
         T
             Temperature [K]
         pp
             Material polarization parameters
-        g_is_1
-            Whether to assume that the Kirkwood correlation factor is 1,
-            or should be calculated
+        g
+            Kirkwood correlation factor
 
         Returns
         -------
-            Polarization per molar volume [-]
+            Polarization [-]
         """
-        # input check
-        if pp.alpha_T is None:
-            raise ValueError(
-                "Molecular polarizability alpha_T of material needs to be known."
-            )
-        # evaluate
-        g = (
-            1
-            if g_is_1
-            else Duan2010._kirkwood_correlation_cgs(
-                d.to("g/cm3").value, T.to("K").value
-            )
-        )
-        first_term = (4 * np.pi * AVOGADRO * d) / (3 * pp.M)
+        # mass_density / molar_mass = molar_density
+        first_term = (4 * np.pi * AVOGADRO * rho) / 3
         second_term = pp.alpha_T + (pp.mu**2 * g) / (3 * BOLTZMANN * T)
         Pnu = first_term * second_term
         # return dimensionless Quantity
@@ -2313,12 +2241,11 @@ class Duan2010(Model):
 
     @staticmethod
     def alpha_T_from_eq14(
-        d: Quantity,
+        rho: Quantity,
         T: Quantity,
         Pnu: Quantity,
-        M: Quantity,
         mu: Quantity,
-        g_is_1: bool = True,
+        g: float = 1.0,
     ) -> Quantity:
         """
         Calculate the molecular polarizability as described in eq. (14) on
@@ -2327,33 +2254,23 @@ class Duan2010(Model):
 
         Parameters
         ----------
-        d
-            Mass density [kg/m^3]
+        rho
+            Molar density [mol/m^3]
         T
             Temperature [K]
         Pnu
             Polarization per molar volume [-]
-        M
-            Molecular weight [g/mol]
         mu
             Molecular dipole moment [esu cm = 1e18 D]
-        g_is_1
-            Whether to assume that the Kirkwood correlation factor is 1,
-            or should be calculated
+        g
+            Kirkwood correlation factor
 
         Returns
         -------
             Molecular polarizability [cm^3]
         """
-        # evaluate
-        g = (
-            1
-            if g_is_1
-            else Duan2010._kirkwood_correlation_cgs(
-                d.to("g/cm3").value, T.to("K").value
-            )
-        )
-        first_term = (3 * M * Pnu) / (4 * np.pi * AVOGADRO * d)
+        # molar_mass / mass_density = 1 / molar_density
+        first_term = (3 * Pnu) / (4 * np.pi * AVOGADRO * rho)
         second_term = ((mu**2 * g) / (3 * BOLTZMANN * T)).decompose()
         alpha_T = (first_term - second_term).decompose()
         if alpha_T < 0:
@@ -2498,11 +2415,11 @@ class Duan2010(Model):
 
     @staticmethod
     def eq27(
-        T: Quantity["K"],
-        P_minor: Quantity["torr"],
-        P_major: Quantity["torr"],
+        T: Quantity["temperature"],
+        P_minor: Quantity["pressure"],
+        P_major: Quantity["pressure"],
         spectral_lines: astrotable.QTable,
-        nu: Quantity["Hz"],
+        nu: Quantity["frequency"],
         br_params: BenReuvenParameters,
     ) -> Quantity:
         """
@@ -2749,6 +2666,88 @@ class Duan2010(Model):
             eps_dprime_r, u.dimensionless_unscaled
         )
 
+    @staticmethod
+    def eps_prime_r_from_spectral_lines(
+        T: Quantity["temperature"],
+        P: Quantity["pressure"],
+        spectral_lines: astrotable.QTable,
+        br_params: BenReuvenParameters,
+        eps_prime_r_inf: Quantity["dimensionless"],
+        nu: Quantity["frequency"],
+        freqmin: Quantity["frequency"] = Quantity(0.1, "MHz"),
+        freqmax: Quantity["frequency"] = Quantity(4, "THz"),
+        freqstep: Quantity["frequency"] = Quantity(0.1, "GHz"),
+    ):
+        """
+        Computes the real part of the relative permittivity by integrating
+        through the spectral lines and assuming an infinite convergence value
+
+        Parameters
+        ----------
+        T
+            Temperature [K]
+        P
+            Pressure [bar]
+        spectral_lines
+            Spectral line catalog for the minor species containing line
+            frequencies nu [MHz], line center intensities I [nm^2 MHz],
+            and lower state energies El [1/cm]
+        nu
+            Target frequency of the absorption [Hz]
+        br_params
+            Parameters for the Ben-Reuven line expression
+        eps_prime_r_inf
+            Real part of the relative permittivity at infinite frequency
+        freqmin
+            Minimum frequency of the integration domain
+        freqmax
+            Maximum frequency of the integration domain
+        freqstep
+            Frequency step of the integration domain
+
+        Returns
+        -------
+            Real part of the relative permittivity
+        """
+        # get integration domain
+        freqrange = Quantity(
+            np.arange(
+                freqmin.to("GHz").value,
+                freqmax.to("GHz").value,
+                freqstep.to("GHz").value,
+            ),
+            "GHz",
+        )
+        freqdiff = freqrange - nu
+        # mask out singularities
+        freqdiff[np.abs(freqdiff) < freqstep / 2] = np.nan
+        # compute absorption coefficient
+        alpha = Duan2010.eq27(
+            np.atleast_1d(T),
+            np.atleast_1d(P),
+            Quantity([0], "atm"),
+            spectral_lines,
+            freqrange,
+            br_params,
+        ).squeeze()
+        # convert from absorption coefficient to imaginary part of the
+        # relative permittivity
+        eps_dprime = (
+            alpha / freqrange.to("1/cm", equivalencies=u.spectral()) / (2 * np.pi)
+        ).decompose()
+        # integrate through profile
+        delta_eps_prime_r = (
+            np.trapezoid(
+                np.nan_to_num((eps_dprime / freqdiff).to("1/GHz").value),
+                x=freqrange.to("GHz").value,
+            )
+            / np.pi
+        )
+        # add to infinite value
+        eps_prime_r = eps_prime_r_inf + delta_eps_prime_r
+        # done
+        return Quantity(eps_prime_r, u.dimensionless_unscaled)
+
 
 class VariableProfiles(Duan2010):
 
@@ -2768,6 +2767,7 @@ class VariableProfiles(Duan2010):
 
     def __init__(
         self,
+        use_compressible_gas: bool = True,
         use_keating_temp_press_above100km: bool = False,
         use_keating_co_co2_n2_above_100km: bool = False,
         use_kolste_h2so4: bool = False,
@@ -2779,6 +2779,7 @@ class VariableProfiles(Duan2010):
         use_cimino_clouds: bool = True,
         use_cimino_fitted_lookup: bool = False,
         min_altitude_spacing: Quantity = Quantity(1, "km"),
+        add_3K: bool = False,
     ):
         """
         Warning
@@ -2787,12 +2788,14 @@ class VariableProfiles(Duan2010):
         and does not have usage documentation yet.
         """
         # save init variables for later use
+        self._add3K = add_3K
         self._cutoff_so2_frequency = cutoff_so2_frequency
         self._use_kolbe_ocs = use_kolbe_ocs
         self._use_cimino_clouds = use_cimino_clouds
         self._use_cimino_fitted_lookup = use_cimino_fitted_lookup
         # call parent initializer
         super().__init__(
+            use_compressible_gas,
             use_keating_temp_press_above100km,
             use_keating_co_co2_n2_above_100km,
             use_kolste_h2so4,
@@ -2828,13 +2831,13 @@ class VariableProfiles(Duan2010):
         :attr:`~VariableProfiles.profiles_el` attributes.
         """
         # run temperature, pressure, and density model
-        self.szas, self.profiles_tpd = seiffkeating(latitudes, localtimes)
+        self.szas, self.profiles_tpd = seiffkeating(latitudes, localtimes, self._add3K)
         # run ionosphere model, save in log space for easier interpolation
         profiles_el = paetzold2007(self.szas.ravel()).reshape(
             -1, localtimes.size, latitudes.size
         )
         profiles_el[profiles_el == 0] = np.nan
-        self.profiles_el = np.log10(profiles_el)
+        self.profiles_el = np.log10(profiles_el.value)
         # save input
         self.latitudes = latitudes
         self.localtimes = localtimes
@@ -2875,7 +2878,7 @@ class VariableProfiles(Duan2010):
             right=np.nan,
         )
         electron_density[np.isnan(electron_density)] = 0
-        self.electron_density = Quantity(electron_density, profile.unit)
+        self.electron_density = Quantity(electron_density, paetzold2007.UNIT_EL_DENSITY)
         # call update methods
         if update:
             self.update_from_ionosphere()
@@ -2913,12 +2916,14 @@ class VariableProfiles(Duan2010):
         alt_prof = Quantity(profile[:, 0], seiffkeating.UNITS[0])
         temp_prof = Quantity(profile[:, 1], seiffkeating.UNITS[1])
         press_prof = Quantity(profile[:, 2], seiffkeating.UNITS[2])
+        dens_prof = Quantity(profile[:, 3], seiffkeating.UNITS[3])
         # get current units
         unit_alt = self.altitude.unit
         unit_temp = self.temperature.unit
         unit_press = self.pressure.unit
+        unit_dens = self.mass_density.unit
         # get extrapolated below 0 km
-        alt_neg, temp_neg, press_neg, _ = Model.tpd_below_0km(
+        alt_neg, temp_neg, press_neg, dens_neg = Model.tpd_below_0km(
             Duan2010.VENUS_GAS_CONSTANT
         )
         # combine
@@ -2931,6 +2936,9 @@ class VariableProfiles(Duan2010):
         new_press = np.concatenate(
             [press_neg.to(unit_press).value, press_prof.to(unit_press).value]
         )
+        new_dens = np.concatenate(
+            [dens_neg.to(unit_dens).value, dens_prof.to(unit_dens).value]
+        )
         # interpolate to current altitudes
         altitude = self.altitude.to(unit_alt).value
         self.temperature = Quantity(
@@ -2940,6 +2948,10 @@ class VariableProfiles(Duan2010):
         self.pressure = Quantity(
             np.interp(altitude, new_alt, new_press, left=np.nan, right=np.nan),
             unit_press,
+        )
+        self.mass_density = Quantity(
+            np.interp(altitude, new_alt, new_dens, left=np.nan, right=np.nan),
+            unit_dens,
         )
         # call update methods
         if update:

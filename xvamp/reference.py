@@ -15,7 +15,7 @@ from astropy.table import Table, QTable, hstack, vstack, join
 
 # package imports
 from . import data
-from .constants import GAS_CONSTANT
+from .constants import ESU_CM, GAS_CONSTANT, SPEC_MOL_M
 from .utils import (
     BoundedInterpolatingBasis,
     cast_to_np,
@@ -816,6 +816,22 @@ class KolodnerSteffes1998(Reference):
     TABLES = ["fig789"]
     """ Table numbers to load """
 
+    # parameters of the experiment
+    MU_H2SO4 = Quantity(2.72e-18, ESU_CM)
+    """ Molecular dipole moment for gaseous sulfuric acid """
+    N_H2SO4 = Quantity((340.64 + 245.36) / 2, "Nunit")
+    """ Refractivity of the gaseous sulfuric acid """
+    D_H2SO4_L = Quantity(1.8305, "g/ml")
+    """ Mass density of the sulfuric acid solution before it evaporates """
+    DISS_H2SO4 = 0.461
+    """ Dissociation constant of vaporized H2SO4 """
+    V_H2SO4 = Quantity((4.12 + 3.18) / 2, "cm3")
+    """ Volume of the H2SO4 solution which vaporizes """
+    V_VESSEL = Quantity(31, "l")
+    """ Volume of the pressure vessel """
+    T_H2SO4 = Quantity(553, "K")
+    """ Temperature of the experiment of :cite:t:`kolodner1998` """
+
     def __init__(self) -> None:
         """
         Initialize the model from the raw data.
@@ -844,6 +860,57 @@ class KolodnerSteffes1998(Reference):
         self.tables["H2SO4 X-band"] = hstack(
             [self.tables["fig789"]["altitude"], h2so4_sum]
         )
+
+    def get_eps_prime_r_and_molar_density(
+        self,
+    ) -> Tuple[Quantity["dimensionless"], Quantity["molar concentration"]]:
+        """
+        Computes the real part of the relative permittivity and the molar density
+        of H2SO4 in the experiment as described in Section 3.2.
+
+        Returns
+        -------
+        eps_prime_r
+            Real part of the relative permittivity of H2SO4 in the experiment
+        rho
+            Molar density of H2SO4 in the experiment
+        """
+        # real part of the relative permittivity
+        eps_prime_r = (self.N_H2SO4.to(u.dimensionless_unscaled)) ** 2
+        # Number of moles of pure H2SO4 liquid which vaporizes
+        nvap = (self.V_H2SO4 * self.D_H2SO4_L / SPEC_MOL_M["H2SO4"]).decompose()
+        # Number of moles of H2SO4 vapor
+        nmol = nvap * (1 - self.DISS_H2SO4)
+        # Molar density of gaseous sulfuric acid
+        rho = (nmol / self.V_VESSEL).to("mol/cm3")
+        # done
+        return eps_prime_r, rho
+
+
+class Magellan3212(Reference):
+    """
+    Reference class that provides the reference profiles from the Magellan
+    orbit no. 3212.
+    """
+
+    BASEFOLDER = "magellan"
+    """ Base folder for data """
+
+    TABLES = ["refraction", "absorption"]
+    """ Table names to load """
+
+    def __init__(self) -> None:
+        """
+        Initialize the model from the raw data.
+        """
+        # parent class
+        super().__init__()
+
+        # get local installation folder paths
+        datafolder = res_files(data) / self.BASEFOLDER
+
+        # load raw data files
+        self.tables = {t: read_unit_csv(datafolder / f"{t}.csv") for t in self.TABLES}
 
 
 class Marcq2006(Reference):
@@ -1068,23 +1135,23 @@ class Zasova2006(Reference):
 
 
 class SeiffKeating:
-    """
-    Class that combines the temperature, pressure, and density profiles from the
-    two references :cite:t:`seiff1985`, which contains latitudinal variations,
-    and :cite:t:`keating1985`, which contains variations with solar zenith angle.
-
-    Parameters
-    ----------
-    seiff
-        Initialized :class:`~xvamp.reference.Seiff1985` model
-    keating
-        Initialized :class:`~xvamp.reference.Keating1985` model
-    """
 
     UNITS = [Unit("km"), Unit("K"), Unit("bar"), Unit("kg/m3")]
     """ Units of the returned profiles """
 
     def __init__(self, seiff: Seiff1985, keating: Keating1985):
+        """
+        Class that combines the temperature, pressure, and density profiles from the
+        two references :cite:t:`seiff1985`, which contains latitudinal variations,
+        and :cite:t:`keating1985`, which contains variations with solar zenith angle.
+
+        Parameters
+        ----------
+        seiff
+            Initialized :class:`~xvamp.reference.Seiff1985` model
+        keating
+            Initialized :class:`~xvamp.reference.Keating1985` model
+        """
         # save models
         self.seiff = seiff
         self.keating = keating
@@ -1100,7 +1167,12 @@ class SeiffKeating:
         )
         # done
 
-    def __call__(self, latitude: Quantity, localtime: Quantity):
+    def __call__(
+        self,
+        latitude: Quantity,
+        localtime: Quantity,
+        add_3K: bool = False,
+    ):
         """
         Interpolate the profiles from :cite:t:`seiff1985` and :cite:t:`keating1985`.
 
@@ -1110,6 +1182,11 @@ class SeiffKeating:
             Latitude [°] of desired profiles
         localtime
             Local solar time [h] of desired profiles
+        add_3K
+            This refers to the 3 K addition done in the :cite:t:`Duan2010` model
+            when combining the :cite:t:`seiff1985` and :cite:t:`zasova2006` profiles.
+            If ``True``, the 3 K are added to all latitudes, if ``False``, to none of
+            them.
 
         Returns
         -------
@@ -1131,17 +1208,18 @@ class SeiffKeating:
         ref_0km_32km = (
             self.seiff.tables["1-1"].as_array().view((float, 7))[:, :4, None, None]
         )
-        # adjust temperature
-        # TODO check if it still makes sense
-        ref_0km_32km[:, 1] += 3
+        # adjust temperature if desired
+        if add_3K:
+            ref_0km_32km[:, 1] += 3
         # compute data at reference altitudes
         # 33-100 km
         basis_33km_100km = self.interp_33km_100km(np.abs(latitude.to("°").value))
         ref_33km_100km = np.einsum(
             "ijk,lk->ijl", self.seiff.dcube_33km_100km, basis_33km_100km
         )
-        # adjust temperature
-        ref_33km_100km[:, 1, :] += 3
+        # adjust temperature if desired
+        if add_3K:
+            ref_33km_100km[:, 1, :] += 3
         # 100-150 km
         basis_100km_150km = self.interp_100km_150km(sza.ravel())
         ref_100km_150km = np.einsum(
@@ -1198,6 +1276,42 @@ class SeiffKeating:
         return Quantity(sza, "°"), profile
 
 
+def stratton1968(
+    T: Quantity["temperature"],
+    P_CO2: Quantity["pressure"],
+    P_N2: Quantity["pressure"],
+    P_H2O: Quantity["pressure"],
+) -> Quantity:
+    """
+    Compute the refractivity from the fitted function in :cite:t:`stratton1968`.
+
+    Parameters
+    ----------
+    T
+        Temperature [K]
+    P_CO2
+        Partial pressure of CO2 [mbar]
+    P_N2
+        Partial pressure of N2 [mbar]
+    P_H2O
+        Partial pressure of H2O [mbar]
+
+    Returns
+    -------
+        Refractivity [Nunit]
+    """
+    # readability
+    T_K = T.to("K").value
+    # compute
+    refractivity = (
+        134.9 * P_CO2.to("mbar").value / T_K
+        + 80.29 * P_N2.to("mbar").value / T_K
+        + 16.57 * (1 + 5748 / T_K) * P_H2O.to("mbar").value / T_K
+    )
+    # return with units
+    return Quantity(refractivity, "Nunit")
+
+
 # load datasets
 cimino1982 = Cimino1982()
 """ Preloaded :class:`~Cimino1982` dataset """
@@ -1211,6 +1325,8 @@ keating1985 = Keating1985()
 """ Preloaded :class:`~Keating1985` dataset """
 kolodnersteffes1998 = KolodnerSteffes1998()
 """ Preloaded :class:`~KolodnerSteffes1998` dataset """
+magellan3212 = Magellan3212()
+""" Preloaded :class:`~Magellan3212` dataset """
 marcq2006 = Marcq2006()
 """ Preloaded :class:`~Marcq2006` dataset """
 paetzold2007 = Paetzold2007()
