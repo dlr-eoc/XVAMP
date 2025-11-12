@@ -19,4 +19,4 @@ dependencies:
   - nbsphinx
   - sphinxcontrib-bibtex
   - graphviz
-  - pypandoc-binary
+  - pandoc

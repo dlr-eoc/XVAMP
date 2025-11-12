@@ -8,7 +8,7 @@ variables:
 
 # default settings for jobs
 default:
-  image: python:3.13
+  image: condaforge/mambaforge:latest
   tags:
     - mf-sar-dev
 
@@ -16,11 +16,12 @@ default:
 pages:
   stage: deploy
   script:
-  - python --version
-  - python -m venv .venv
-  - source .venv/bin/activate
   - which python; python --version
-  - python -m pip cache dir
+  - which conda; conda --version
+  - conda config --show
+  - conda env create --prefix=.condaenv/ -f environment.yml
+  - conda activate .condaenv
+  - which python; python --version
   - python -m pip install --upgrade .[docs]
   - cd docsrc
   - make html
