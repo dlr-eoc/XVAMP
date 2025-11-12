@@ -39,7 +39,7 @@ pages:
   - which python; python --version
   - python -m pip install --upgrade .[docs]
   - cd docsrc
-  - make html
+  - sphinx-build -M html . _build
   - mv _build/html ../public
   artifacts:
     paths:
