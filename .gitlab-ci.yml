@@ -36,7 +36,9 @@ pages:
   - eval "$(conda shell.bash hook)"
   - conda activate $(pwd)/.condaenv
   - ACTIVATIONSUCCESS=$?
-  - if [[ $ACTIVATIONSUCCESS != 0 ]]; then
+  - if [[ $ACTIVATIONSUCCESS == 0 ]]; then
+    conda env update --prefix=$(pwd)/.condaenv -f environment.yml;
+    else
     conda env create --prefix=$(pwd)/.condaenv -f environment.yml
     && conda activate $(pwd)/.condaenv;
     fi
