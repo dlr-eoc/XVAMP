@@ -35,7 +35,8 @@ pages:
   - which python; python --version
   - which conda; conda --version
   - eval "$(conda shell.bash hook)"
-  - conda activate $(pwd)/.condaenv 2>&1; ACTIVATIONSUCCESS=$?
+  - ACTIVATIONSUCCESS=0
+  - conda activate $(pwd)/.condaenv 2>&1 || ACTIVATIONSUCCESS=$?
   - if [[ $ACTIVATIONSUCCESS == 0 ]]; then
     echo "Updating environment";
     conda env update --prefix=$(pwd)/.condaenv -f environment.yml;
