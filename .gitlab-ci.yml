@@ -34,8 +34,8 @@ pages:
   - which python; python --version
   - which conda; conda --version
   - eval "$(conda shell.bash hook)"
-  - conda env create --prefix=.condaenv -f environment.yml
-  - conda activate .condaenv
+  - conda env create --prefix=$(pwd)/.condaenv -f environment.yml
+  - conda activate $(pwd)/.condaenv
   - which python; python --version
   - python -m pip install --upgrade .[docs]
   - cd docsrc
