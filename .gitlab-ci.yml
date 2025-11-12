@@ -18,8 +18,8 @@ pages:
   script:
   - which python; python --version
   - which conda; conda --version
-  - source /root/.bashrc
   - conda init
+  - source /root/.bashrc
   - conda config --show
   - conda env create --prefix=.condaenv -f environment.yml
   - conda activate .condaenv
