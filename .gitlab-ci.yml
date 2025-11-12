@@ -34,11 +34,12 @@ pages:
   - which python; python --version
   - which conda; conda --version
   - eval "$(conda shell.bash hook)"
-  - conda activate $(pwd)/.condaenv
-  - ACTIVATIONSUCCESS=$?
+  - conda activate $(pwd)/.condaenv; ACTIVATIONSUCCESS=$?
   - if [[ $ACTIVATIONSUCCESS == 0 ]]; then
+    echo "Updating environment";
     conda env update --prefix=$(pwd)/.condaenv -f environment.yml;
     else
+    echo "Creating a new environment";
     conda env create --prefix=$(pwd)/.condaenv -f environment.yml
     && conda activate $(pwd)/.condaenv;
     fi
