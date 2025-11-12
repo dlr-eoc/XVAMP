@@ -39,7 +39,7 @@ pages:
   - if [[ $ACTIVATIONSUCCESS != 0 ]]; then
     conda env create --prefix=$(pwd)/.condaenv -f environment.yml
     && conda activate $(pwd)/.condaenv;
-    done
+    fi
   - which python; python --version
   - python -m pip install --upgrade .[docs]
   - cd docsrc
