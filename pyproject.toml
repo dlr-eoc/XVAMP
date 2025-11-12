@@ -30,7 +30,7 @@ docs = [
     "nbsphinx",
     "sphinxcontrib-bibtex",
     "graphviz",
-    "pypandoc",
+    "pypandoc-binary",
 ]
 
 [tool.setuptools]
