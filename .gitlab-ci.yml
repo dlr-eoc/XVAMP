@@ -1,31 +1,24 @@
-# Change pip's cache directory to be inside the project directory since we can
-# only cache local items.
+# define stages explicitly
+stages:
+  - deploy
+
+# set pip cache to be outside the Docker volume
 variables:
-  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
-
-# https://pip.pypa.io/en/stable/topics/caching/
-cache:
-  paths:
-    - .cache/pip
-
-before_script:
-  - . ~sarlab/tools/Modules/init/bash
-  - module source ~sarlab/tools/Modules/etc/initrc
-  - echo "Gitlab-runner working directory $(pwd)"
-  - module load python/3.12.2.el9.x86_64
-  - which python3 ; python3 --version
-  - python3 -m venv .venv
-  - source .venv/bin/activate  
-  - which python3 ; python3 --version
+  PIP_CACHE_DIR: "/data-common/tmp/pip-cache/"
 
 default:
+  image: python:3.13
   tags:
-    - veritas
+    - mf-sar-dev
 
 pages:
   stage: deploy
   script:
-  - python3 -m pip install --upgrade .[docs]
+  - python --version
+  - python -m venv .venv
+  - source .venv/bin/activate
+  - which python; python --version
+  - python -m pip install --upgrade .[docs]
   - cd docsrc
   - make html
   - mv _build/html ../public
