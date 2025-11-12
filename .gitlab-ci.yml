@@ -6,11 +6,13 @@ stages:
 variables:
   PIP_CACHE_DIR: "/data-common/tmp/pip-cache/"
 
+# default settings for jobs
 default:
   image: python:3.13
   tags:
     - mf-sar-dev
 
+# build the documentation
 pages:
   stage: deploy
   script:
