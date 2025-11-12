@@ -18,8 +18,9 @@ pages:
   script:
   - which python; python --version
   - which conda; conda --version
+  - conda init
   - conda config --show
-  - conda env create --prefix=.condaenv/ -f environment.yml
+  - conda env create --prefix=.condaenv -f environment.yml
   - conda activate .condaenv
   - which python; python --version
   - python -m pip install --upgrade .[docs]
