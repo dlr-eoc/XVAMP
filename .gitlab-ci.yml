@@ -1,0 +1,55 @@
+# define stages explicitly
+stages:
+  - deploy
+
+# set pip cache to be outside the Docker volume
+variables:
+  PIP_CACHE_DIR: "/data-common/tmp/pip-cache/"
+  # for faster caching, see https://gitlab.com/gitlab-org/gitlab-runner/-/issues/1797
+  # enable fastzip - a faster zip implementation that also supports level configuration.
+  FF_USE_FASTZIP: "true"
+  # can also be set to fastest, fast, slow and slowest.
+  # If just enabling fastzip is not enough try setting this to fastest or fast.
+  ARTIFACT_COMPRESSION_LEVEL: default
+   # same as above, but for caches
+  CACHE_COMPRESSION_LEVEL: default
+  # will display transfer progress every 5 seconds for artifacts and remote caches.
+  TRANSFER_METER_FREQUENCY: 5s
+
+
+# default settings for jobs
+default:
+  image: condaforge/mambaforge:latest
+  tags:
+    - mf-sar-dev
+  cache:
+    paths:
+    - .condaenv
+
+# build the documentation
+pages:
+  stage: deploy
+  script:
+  - echo $0
+  - which python; python --version
+  - which conda; conda --version
+  - eval "$(conda shell.bash hook)"
+  - conda activate $(pwd)/.condaenv; ACTIVATIONSUCCESS=$?
+  - if [[ $ACTIVATIONSUCCESS == 0 ]]; then
+    echo "Updating environment";
+    conda env update --prefix=$(pwd)/.condaenv -f environment.yml;
+    else
+    echo "Creating a new environment";
+    conda env create --prefix=$(pwd)/.condaenv -f environment.yml
+    && conda activate $(pwd)/.condaenv;
+    fi
+  - which python; python --version
+  - python -m pip install --upgrade .[docs]
+  - cd docsrc
+  - sphinx-build -M html . _build
+  - mv _build/html ../public
+  artifacts:
+    paths:
+    - public
+  only:
+  - main
