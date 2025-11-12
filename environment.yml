@@ -19,3 +19,4 @@ dependencies:
   - nbsphinx
   - sphinxcontrib-bibtex
   - graphviz
+  - pandoc

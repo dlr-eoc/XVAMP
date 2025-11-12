@@ -18,6 +18,7 @@ pages:
   - python -m venv .venv
   - source .venv/bin/activate
   - which python; python --version
+  - python -m pip cache dir
   - python -m pip install --upgrade .[docs]
   - cd docsrc
   - make html
