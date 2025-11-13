@@ -2,9 +2,10 @@
 stages:
   - deploy
 
-# set pip cache to be outside the Docker volume
 variables:
+  # set pip and conda cache to be outside the Docker volume
   PIP_CACHE_DIR: "/data-common/tmp/pip-cache/"
+  CONDA_PKGS_DIRS: "/data-common/tmp/conda-pkgs-dir/"
   # for faster caching, see https://gitlab.com/gitlab-org/gitlab-runner/-/issues/1797
   # enable fastzip - a faster zip implementation that also supports level configuration.
   FF_USE_FASTZIP: "true"
