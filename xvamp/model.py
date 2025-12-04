@@ -239,6 +239,52 @@ class Model:
     absorptions: astrotable.QTable
     """ Table with species absorptions """
 
+    def get_interpolated_attribute(
+        self,
+        attribute: str,
+        unit: Unit,
+        altitude: Quantity | float_or_array,
+        left: float,
+        right: float,
+    ) -> Quantity:
+        """
+        Retrieve an attribute profile and interpolate it.
+
+        Parameters
+        ----------
+        attribute
+            Name of the attribute
+        unit
+            Unit to be used for the interpolation
+        altitude
+            Height in [km], if not a :class:`~astropy.units.Quantity`
+        left
+            Value to use below the available data of the profile
+        right
+            Value to use above the available data of the profile
+
+        Returns
+        -------
+            Interpolated attribute profile
+        """
+        # get existing profile of the attribute
+        attr = getattr(self, attribute)
+        # format the altitude input levels
+        if isinstance(altitude, Quantity):
+            altitude = altitude.to("km").value
+        alt = np.atleast_1d(altitude)
+        assert np.all(np.diff(alt) >= 0)
+        # interpolate
+        prof = np.interp(
+            alt,
+            self.altitude.to("km").value,
+            attr.to(unit).value,
+            left=left,
+            right=right,
+        )
+        # return with unit
+        return Quantity(prof, unit)
+
     def get_refraction(self, altitude: Quantity | float_or_array) -> Quantity:
         """
         Return the index of refraction at specific altitudes.
@@ -254,20 +300,9 @@ class Model:
         -------
             Refractive index [-]
         """
-        # input format
-        if isinstance(altitude, Quantity):
-            altitude = altitude.to("km").value
-        alt = np.atleast_1d(altitude)
-        assert np.all(np.diff(alt) >= 0)
-        # interpolate where we can, fill according to direction elsewhere
-        n = np.interp(
-            alt,
-            self.altitude.to("km").value,
-            self.refraction.to(u.dimensionless_unscaled).value,
-            left=np.nan,
-            right=1,
+        return self.get_interpolated_attribute(
+            "refraction", u.dimensionless_unscaled, altitude, np.nan, 1
         )
-        return Quantity(n, u.dimensionless_unscaled)
 
     def get_absorption(self, altitude: Quantity | float_or_array) -> Quantity:
         """
@@ -284,20 +319,26 @@ class Model:
         -------
             Absorption [dB/km]
         """
-        # input format
-        if isinstance(altitude, Quantity):
-            altitude = altitude.to("km").value
-        alt = np.atleast_1d(altitude)
-        assert np.all(np.diff(alt) >= 0)
-        # interpolate where we can, fill according to direction elsewhere
-        alpha = np.interp(
-            alt,
-            self.altitude.to("km").value,
-            self.absorption.to("dB/km").value,
-            left=np.nan,
-            right=0,
+        return self.get_interpolated_attribute(
+            "absorption", Unit("dB/km"), altitude, np.nan, 0
         )
-        return Quantity(alpha, "dB/km")
+
+    def get_temperature(self, altitude: Quantity | float_or_array) -> Quantity:
+        """
+        Return the temperature at specific altitudes.
+        At altitudes below the defined dataset, this function will return ``NaN``,
+        and ``0`` above.
+
+        Parameters
+        ----------
+        altitude
+            Height in [km], if not a :class:`~astropy.units.Quantity`.
+
+        Returns
+        -------
+            Temperature [K]
+        """
+        return self.get_interpolated_attribute("temperature", u.K, altitude, np.nan, 0)
 
     def get_range_attenuation_angle(
         self,
