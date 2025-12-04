@@ -889,8 +889,8 @@ class KolodnerSteffes1998(Reference):
 
 class Magellan3212(Reference):
     """
-    Reference class that provides the reference profiles from the Magellan
-    orbit no. 3212.
+    Reference class that provides the refraction and absorption profiles from the
+    Magellan orbit no. 3212 in X-band obtained from :cite:t:`jenkins1996`.
     """
 
     BASEFOLDER = "magellan"
