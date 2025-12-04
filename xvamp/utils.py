@@ -671,12 +671,12 @@ def get_brightness_temperature(
     T_K = temperature.to("K").value
     absorption_dB_km = absorption.to("dB/km").value
     # integrate
-    cos_theta = np.cos(theta)
+    sec_theta = 1 / np.cos(theta.to("rad").value)
     tau = cumulative_trapezoid(absorption_dB_km[::-1], x=altitude_km[::-1], initial=0)
     tau = -tau[::-1]
-    factor1 = np.exp(-tau / cos_theta)
-    T_up = np.trapezoid(absorption_dB_km * T_K * factor1, x=altitude_km) / cos_theta
-    factor2 = np.exp(-np.trapezoid(absorption_dB_km, x=altitude_km) / cos_theta)
+    factor1 = np.exp(-tau * sec_theta)
+    T_up = np.trapezoid(absorption_dB_km * T_K * factor1, x=altitude_km) * sec_theta
+    factor2 = np.exp(-np.trapezoid(absorption_dB_km, x=altitude_km) * sec_theta)
     T_brightness = T_K[0] * factor2 + T_up
     # done
     return Quantity(T_brightness, "K")
