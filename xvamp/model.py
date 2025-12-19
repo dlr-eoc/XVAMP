@@ -33,6 +33,7 @@ from .reference import (
     jplspectrallines,
     keating1985,
     kolodnersteffes1998,
+    magellan321x,
     marcq2006,
     paetzold2007,
     seiff1985,
@@ -738,7 +739,7 @@ class Duan2010(Model):
         use_compressible_gas: bool = True,
         use_keating_temp_press_above100km: bool = False,
         use_keating_co_co2_n2_above_100km: bool = False,
-        use_kolste_h2so4: bool = False,
+        use_magellan_h2so4: bool | int = False,
         use_marcq_ocs: bool = False,
         add_ar: bool = False,
         cutoff_so2_frequency: Quantity["frequency"] | None = None,
@@ -778,9 +779,11 @@ class Duan2010(Model):
             atmosphere- and ionosphere-dominated permittivity profiles is at 100 km,
             and the ionosphere is modeled differently. It is only useful if one
             wants to load these quantities for later plotting.
-        use_kolste_h2so4
-            Whether to use the H2SO4 profile from :cite:t:`kolodner1998`
-            instead of the :cite:t:`duan2010` profile.
+        use_magellan_h2so4
+            Whether to use one of the Magellan-derived H2SO4 profiles from
+            :cite:t:`jenkins1996` (if an integer) or their average from
+            :cite:t:`kolodner1998` (if ``True``) instead of the :cite:t:`duan2010`
+            profile (if ``False``).
             This has a range delay effect on the millimeter scale, and an effect
             on the two-way attenuation on the centidecibel scale.
         use_marcq_ocs
@@ -851,7 +854,7 @@ class Duan2010(Model):
         # get the mixing ratios of the chemical species
         mixratios, comp_interpolators, comp_unit = Duan2010.get_composition(
             use_keating_co_co2_n2_above_100km=use_keating_co_co2_n2_above_100km,
-            use_kolste_h2so4=use_kolste_h2so4,
+            use_magellan_h2so4=use_magellan_h2so4,
             use_marcq_ocs=use_marcq_ocs,
             add_ar=add_ar,
         )
@@ -1358,7 +1361,7 @@ class Duan2010(Model):
     @staticmethod
     def get_composition(
         use_keating_co_co2_n2_above_100km: bool = False,
-        use_kolste_h2so4: bool = False,
+        use_magellan_h2so4: bool | int = False,
         use_marcq_ocs: bool = False,
         add_ar: bool = False,
     ) -> Tuple[dict[str, pd.DataFrame], dict[str, Callable], Unit]:
@@ -1372,9 +1375,11 @@ class Duan2010(Model):
             CO, CO2, and N2 as continuation above the :cite:t:`duan2010`
             profiles (instead of continuing CO2 and N2 upwards as a constant,
             and setting CO to zero upwards of the highest value).
-        use_kolste_h2so4
-            Whether to use the H2SO4 profile from :cite:t:`kolodner1998`
-            instead of the :cite:t:`duan2010` profile.
+        use_magellan_h2so4
+            Whether to use one of the Magellan-derived H2SO4 profiles from
+            :cite:t:`jenkins1996` (if an integer) or their average from
+            :cite:t:`kolodner1998` (if ``True``) instead of the :cite:t:`duan2010`
+            profile (if ``False``).
         use_marcq_ocs
             Whether to use the OCS profile from :cite:t:`marcq2006`
             instead of the :cite:t:`duan2010` profile.
@@ -1469,13 +1474,41 @@ class Duan2010(Model):
         interpolators["SO2"] = duan2010figures.get_so2_density
 
         # H2SO4
-        if use_kolste_h2so4:
-            mixratios["H2SO4"] = kolodnersteffes1998.tables["H2SO4 X-band"].to_pandas(
-                index="altitude"
-            )
-            mixratios["H2SO4"].rename(
-                columns={mixratios["H2SO4"].columns[0]: "H2SO4"}, inplace=True
-            )
+        if use_magellan_h2so4:
+            # use the average profiles from Kolodner & Steffes
+            if isinstance(use_magellan_h2so4, bool):
+                h2so4_alt = (
+                    kolodnersteffes1998.tables["H2SO4 X-band"]["altitude"]
+                    .to("km")
+                    .value
+                )
+                h2so4_mr = (
+                    kolodnersteffes1998.tables["H2SO4 X-band"]["mixing ratio of H2SO4"]
+                    .to(comp_unit)
+                    .value
+                )
+            # use a specific orbit from Magellan
+            else:
+                temp = magellan321x.tables["mgn_abs"]
+                # extract X-band data for the given orbit
+                temp = temp[
+                    np.logical_and(
+                        temp["WAVELENGTH"] == "S",
+                        temp["ORBIT_NUMBER"] == use_magellan_h2so4,
+                    )
+                ]
+                if len(temp) == 0:
+                    raise ValueError(
+                        f"The Magellan orbit {use_magellan_h2so4} seems "
+                        "to not produce any H2SO4 profile."
+                    )
+                # convert to altitude-indexed mixing ratio
+                h2so4_alt = temp["ALTITUDE"].to("km").value
+                h2so4_mr = np.clip(
+                    temp["H2SO4_VOLMIX"].to(comp_unit).value, a_min=0, a_max=None
+                )
+            # save
+            mixratios["H2SO4"] = pd.DataFrame(index=h2so4_alt, data={"H2SO4": h2so4_mr})
         else:
             mixratios["H2SO4"] = pd.DataFrame(
                 index=duan2010figures.H2SO4_FRACTION_NODES[:, 0],
@@ -2811,7 +2844,7 @@ class VariableProfiles(Duan2010):
         use_compressible_gas: bool = True,
         use_keating_temp_press_above100km: bool = False,
         use_keating_co_co2_n2_above_100km: bool = False,
-        use_kolste_h2so4: bool = False,
+        use_magellan_h2so4: bool | int = False,
         use_marcq_ocs: bool = False,
         add_ar: bool = False,
         cutoff_so2_frequency: Quantity["frequency"] | None = None,
@@ -2839,7 +2872,7 @@ class VariableProfiles(Duan2010):
             use_compressible_gas,
             use_keating_temp_press_above100km,
             use_keating_co_co2_n2_above_100km,
-            use_kolste_h2so4,
+            use_magellan_h2so4,
             use_marcq_ocs,
             add_ar,
             cutoff_so2_frequency,

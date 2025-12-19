@@ -61,6 +61,7 @@ def read_unit_fwf(
     formats: list[str],
     widths: list[int],
     units: list[str],
+    converters: dict = {},
 ) -> QTable:
     """
     Given a path to a fixed-width text file and lists describing the column
@@ -79,13 +80,17 @@ def read_unit_fwf(
         List of column widths
     units
         List of astropy-readable unit strings
+    converters
+        Column data converter functions passed on to :func:`~numpy.genfromtxt`
 
     Returns
     -------
         Table with quantities and units
     """
     # read data
-    data = np.genfromtxt(path, dtype=formats, delimiter=widths, encoding="utf8")
+    data = np.genfromtxt(
+        path, dtype=formats, delimiter=widths, converters=converters, encoding="utf8"
+    )
     # build QTable
     return QTable(data, names=names, units=units)
 
