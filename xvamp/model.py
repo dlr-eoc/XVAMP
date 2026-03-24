@@ -2227,7 +2227,7 @@ class Duan2010(Model):
     ) -> float_or_array:
         """
         Compute the leading non-polar term in the dielectric virial expansion
-        (as described by Harvey & Lemmon, 2005, eq. 5) using the polarization
+        (as described by :cite:t:`harvey2005`, eq. 5) using the polarization
         per molar volume and the dipolar term, and assuming no temperature dependence.
 
         Parameters
@@ -2657,7 +2657,8 @@ class Duan2010(Model):
         q: float_or_array | Quantity, p: Quantity, f: Quantity, T: Quantity
     ) -> Quantity:
         """
-        Calculate the total absorption of H2SO4 given eq. (33) on p. 11.
+        Calculate the total absorption of H2SO4 given eq. (33) on p. 11 in
+        :cite:t:`duan2010`, which in turn is eq. (18) in :cite:t:`kolodner1998`.
 
         Parameters
         ----------
