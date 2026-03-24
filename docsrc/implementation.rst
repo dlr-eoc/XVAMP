@@ -98,72 +98,6 @@ For more information about the usage of the code, please see
 :doc:`API description </xvamp>` itself. The remainder of this document is focused on
 deviations and improvements from the :cite:t:`duan2010` study.
 
-Modifications
-^^^^^^^^^^^^^
-
-In the following, the :cite:t:`duan2010` study is simply referred to as the "paper",
-and Jessie Duan's Matlab implementation as the "reference code".
-
-"Bottom" of the simulation
-''''''''''''''''''''''''''
-
-The reference code is only defined for altitudes of 0 and above, i.e., at the mean
-planetary radius of 6051.8 km or more. If delay or attenuation quantities for areas
-below the mean radius are desired, the final permittivity profile is extrapolated.
-XVAMP instead extrapolates the temperature, pressure, density, and mixing ratio
-profiles to negative altitudes instead.
-
-.. note::
-
-   This should have a negligible impact on the final delay or attenuation values.
-
-Cloud polarization and absorption
-'''''''''''''''''''''''''''''''''
-
-The paper describes a way to incorporate the effect of the cloud layer in sections
-2.1.5 and 2.2.5. The reference code, however, follows a different approach: the one
-assuming shell-like droplets described by :cite:t:`cimino1982`. The two approches
-differ by one and two orders of magnitude in the polarization and absorption profiles
-they yield, respectively, with the paper version being the higher one.
-For typical satellite heights, the difference amounts to a sub-millimeter change
-in the delay terms, but an approximately 2.7 dB two-way attenuation increase for
-the paper version.
-
-The reason the code uses the :cite:t:`cimino1982` model instead is because it
-was derived explicitly for the Venus conditions. As such, the Cimino model explains the
-observed discrepancy between cloud "mass contents derived from the absorption
-coefficient data" and "those measured by [...] the Sounder probe" (section 9).
-Therefore, the Cimino model is preferred, and also implemented in XVAMP.
-However, the paper version is available as an option (``use_cimino_clouds=False``).
-
-.. important::
-
-   This has a **significant** impact on the final attenuation values,
-   and a negligible one on the final delay values.
-
-Polarization and absorption of OCS
-''''''''''''''''''''''''''''''''''
-
-*Still needs to be written - the reference code only includes OCS absorption,
-whereas XVAMP and the study include both. There are also discrepancies in the
-models used (spectral line shapes and broadening coefficients), which is currently
-being finalized.*
-
-.. note::
-
-   This should have a negligible impact on the final delay or attenuation values.
-
-Polarization of H2SO4
-'''''''''''''''''''''
-
-*Still needs to be written - the reference code has some flaws in the way it
-computes the H2SO4 polarization parameters. These are fixed internally, but not
-fully finalized yet.*
-
-.. note::
-
-   This should have a negligible impact on the final delay or attenuation values.
-
 Remark on polarization notation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -244,6 +178,83 @@ The polarization parameters are evaluted according to the format they're in insi
 :meth:`~xvamp.model.Duan2010.evaluate_polarization_parameters`, and simply summed
 together (since their relative importance to the mixture polarization has already
 been taken into account) in :meth:`~xvamp.model.Duan2010.sum_polarizations`.
+
+Modifications
+^^^^^^^^^^^^^
+
+In the following, the :cite:t:`duan2010` study is simply referred to as the "paper",
+and Jessie Duan's Matlab implementation as the "reference code".
+
+"Bottom" of the simulation
+''''''''''''''''''''''''''
+
+The reference code is only defined for altitudes of 0 and above, i.e., at the mean
+planetary radius of 6051.8 km or more. If delay or attenuation quantities for areas
+below the mean radius are desired, the final permittivity profile is extrapolated.
+XVAMP instead extrapolates the temperature, pressure, density, and mixing ratio
+profiles to negative altitudes instead.
+
+.. note::
+
+   This should have a negligible impact on the final delay or attenuation values.
+
+Cloud polarization and absorption
+'''''''''''''''''''''''''''''''''
+
+The paper describes a way to incorporate the effect of the cloud layer in sections
+2.1.5 and 2.2.5. The reference code, however, follows a different approach: the one
+assuming shell-like droplets described by :cite:t:`cimino1982`. The two approches
+differ by one and two orders of magnitude in the polarization and absorption profiles
+they yield, respectively, with the paper version being the higher one.
+For typical satellite heights, the difference amounts to a sub-millimeter change
+in the delay terms, but an approximately 2.7 dB two-way attenuation increase for
+the paper version.
+
+The reason the code uses the :cite:t:`cimino1982` model instead is because it
+was derived explicitly for the Venus conditions. As such, the Cimino model explains the
+observed discrepancy between cloud "mass contents derived from the absorption
+coefficient data" and "those measured by [...] the Sounder probe" (section 9).
+Therefore, the Cimino model is preferred, and also implemented in XVAMP.
+However, the paper version is available as an option (``use_cimino_clouds=False``).
+
+.. important::
+
+   This has a **significant** impact on the final attenuation values,
+   and a negligible one on the final delay values.
+
+Polarization and absorption of OCS
+''''''''''''''''''''''''''''''''''
+
+*Still needs to be written - the reference code only includes OCS absorption,
+whereas XVAMP and the study include both. There are also discrepancies in the
+models used (spectral line shapes and broadening coefficients), which is currently
+being finalized.*
+
+.. note::
+
+   This should have a negligible impact on the final delay or attenuation values.
+
+Polarization of H2SO4
+'''''''''''''''''''''
+
+When computing the the polarization of the gaseous H2SO4, the reference code relied
+on some unnecessary assumptions to derive the polarizability :math:`A_\epsilon`.
+The present code addresses this by instead following the polarization computation
+approach suggested by the study which provides the necessary experimental data,
+:cite:t:`kolodner1998`, Section 3.2. This approach is implemented in
+:meth:`~xvamp.reference.KolodnerSteffes1998.get_eps_prime_r_and_molar_density`
+(to derive the mass density and the real part of the relative permittivity of H2SO4)
+and then completed in a general sense in
+:meth:`~xvamp.model.Duan2010.get_polarization_parameters` (to compute the
+polarization parameters that can then be evaluated at given molar densities and
+temperatures of the atmospheric column).
+
+.. note::
+
+   This has no impact on the attenuation (since absorption is computed from a
+   different model; Section 7 in :cite:t:`kolodner1998`), but changes the polarization
+   profile by about 20%. Since H2SO4 is only a minor contributor to the total
+   polarization, this should have a negligible impact on the final delay values.
 
 Limitations
 ^^^^^^^^^^^
