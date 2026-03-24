@@ -649,12 +649,17 @@ def geometric_range_from_central_angle(
 def get_brightness_temperature(
     altitude: Quantity["length"],
     temperature: Quantity["temperature"],
+    refraction: Quantity["dimensionless"],
     absorption: Quantity["dB/km"],
-    theta: Quantity["angle"],
+    look_angle: Quantity["angle"],
+    surface_brightness: Quantity["temperature"],
 ) -> Quantity["temperature"]:
     """
-    Calculate the brightness temperature from the temperature and absorption
-    profiles.
+    Calculate the brightness temperature of the planet from an assumed surface
+    brightness as well as the temperature, refraction, and absorption profiles
+    (across their entirety, i.e., assuming that the surface is the first and the
+    platform is the last altitude array element, respectively).
+    Assumes a scatter-free medium and follows Section 6-6.4 of :cite:t:`ulaby2013`.
 
     Parameters
     ----------
@@ -662,26 +667,54 @@ def get_brightness_temperature(
         Altitude values of the profiles
     temperature
         Temperature profile
+    refraction
+        Refraction profile
     absorption
         Absorption coefficient profile
-    theta
+    look_angle
         Observer angle
+    surface_brightness
+        Assumed surface brightness temperature
 
     Returns
     -------
         Brightness temperature
     """
-    # force units
+    # force units for straightforward numerical integration later
     altitude_km = altitude.to("km").value
+    height_platform = altitude_km[-1]
     T_K = temperature.to("K").value
-    absorption_dB_km = absorption.to("dB/km").value
-    # integrate
-    sec_theta = 1 / np.cos(theta.to("rad").value)
-    tau = cumulative_trapezoid(absorption_dB_km[::-1], x=altitude_km[::-1], initial=0)
-    tau = -tau[::-1]
-    factor1 = np.exp(-tau * sec_theta)
-    T_up = np.trapezoid(absorption_dB_km * T_K * factor1, x=altitude_km) * sec_theta
-    factor2 = np.exp(-np.trapezoid(absorption_dB_km, x=altitude_km) * sec_theta)
-    T_brightness = T_K[0] * factor2 + T_up
+    refractions = refraction.value
+    refraction_0 = refractions[-1]
+    absorption_Np_km = absorption.to("Np/km").value
+    venus_radius = VENUS_RADIUS.to("km").value
+    look_angle_rad = look_angle.to("rad").value
+    surface_brightness_K = surface_brightness.to("K").value
+    # use Snell's law for a spherical shell to compute the secant of the
+    # look angle for all platform and evaluation altitude layers
+    sine_look_angle = (
+        (venus_radius + height_platform)
+        / (venus_radius + altitude_km)
+        * (refraction_0 / refractions)
+        * np.sin(look_angle_rad)
+    )
+    secant_look_angle = 1 / np.sqrt(1 - sine_look_angle**2)
+    # get an expression for the differential optical thickness
+    # for each layer of the spherical atmosphere.
+    # start from eq. (6.61) setting κ_e = κ_a (scatter-free assumption)
+    # and noting κ_a = 2α, eq. (6.92)
+    dtau_dz = 2 * absorption_Np_km * secant_look_angle
+    # note that this expression uses the geometric curved path length
+    # drho = sec(θ) dz rather than the optical curved path length
+    # droh = n(z) sec(θ) dz to be consistent with Ulaby & Long 2013.
+    # cumulatively integrate to get an expression for tau(0, z')
+    # as needed in eq. (6.73)
+    tau = cumulative_trapezoid(dtau_dz, x=altitude_km, initial=0)
+    # rearrange to get the expression for tau(z', height_platform)
+    tau = tau[-1] - tau
+    # get upward emission contribution, second term in eq. (6.73)
+    T_up = np.trapezoid(T_K * np.exp(-tau) * dtau_dz, x=altitude_km)
+    # combine everything
+    T_brightness = surface_brightness_K * np.exp(-tau[0]) + T_up
     # done
     return Quantity(T_brightness, "K")
