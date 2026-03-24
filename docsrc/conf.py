@@ -52,7 +52,7 @@ intersphinx_mapping = {
     "python": ("https://docs.python.org/3.13/", None),
     "numpy": ("https://numpy.org/doc/2.2/", None),
     "scipy": ("https://docs.scipy.org/doc/scipy-1.15.2/", None),
-    "pandas": ("https://pandas.pydata.org/pandas-docs/version/2.3.0/", None),
+    "pandas": ("https://pandas.pydata.org/pandas-docs/version/2.3/", None),
     "matplotlib": ("https://matplotlib.org/3.10.1/", None),
     "astropy": ("https://docs.astropy.org/en/stable/", None),
 }
