@@ -381,6 +381,9 @@ class Model:
             height_platform = height_platform.to("km").value
         if isinstance(look_angle, Quantity):
             look_angle = look_angle.to("rad").value
+        height_terrain = np.atleast_1d(height_terrain)
+        height_platform = np.atleast_1d(height_platform)
+        look_angle = np.atleast_1d(look_angle)
         assert look_angle.size == 1
         venus_radius = VENUS_RADIUS.to("km").value
         height_model = self.altitude.to("km").value
