@@ -158,7 +158,10 @@ cython_debug/
 .vscode/
 
 # playground files
-playground.*
+/*.ipynb
+/*.npz
+/*.npy
+/*.mat
 
 # documentation
 docs/
