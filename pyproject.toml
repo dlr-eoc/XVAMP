@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools >= 80.0"]
+requires = ["setuptools >= 80.0", "setuptools-scm[simple]>=9.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "xvamp"
-version = "2025.10rc"
+dynamic = ["version"]
 description = "X-Band Venus Atmosphere Model Permissivity (XVAMP)"
 readme = "README.md"
 authors = [{ name = "Tobias Köhne", email = "tobias.koehne@dlr.de" }]

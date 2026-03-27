@@ -5,7 +5,7 @@
 
 import os
 import sys
-import tomllib
+from importlib.metadata import version as get_version
 from datetime import datetime
 
 # add root folder to path so that we can import the package in
@@ -18,10 +18,8 @@ sys.path.insert(0, os.path.abspath(".."))
 project = "XVAMP"
 copyright = f"{datetime.now().year}, DLR e.V."
 author = "Tobias Köhne"
-with open("../pyproject.toml", "rb") as f:
-    pyproj = tomllib.load(f)
-    version = pyproj["project"]["version"]
-    release = version
+release: str = get_version("xvamp")
+version = release
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

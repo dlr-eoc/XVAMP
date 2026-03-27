@@ -1,0 +1,4 @@
+# ignore some parts of the repo when running setuptools-scm / making an sdist
+/docsrc export-ignore
+/environment.yml export-ignore
+/.gitlab-ci.yml export-ignore
