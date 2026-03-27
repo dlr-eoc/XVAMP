@@ -21,6 +21,7 @@ from .constants import *
 from .utils import (
     float_or_array,
     fill_df,
+    geometric_range_from_central_angle,
     read_polarization_parameters,
     HarveyLemmon2005Parameters,
     Pitzer1983Parameters,
@@ -473,6 +474,50 @@ class Model:
         central_angle = Quantity(beta_to - beta_from, "rad")
         # done
         return apparent_range, attenuation, central_angle
+
+    def get_delay_attenuation(
+        self,
+        height_terrain: Quantity | float_or_array,
+        height_platform: Quantity | float_or_array,
+        look_angle: Quantity | float,
+    ) -> Tuple[Quantity, Quantity]:
+        """
+        Calculate the range delay (defined as the difference between the apparent and
+        geometric range) and two-way attenuation through the atmosphere.
+        Convenience wrapper around :meth:`~Model.get_range_attenuation_angle`
+        and :func:`~xvamp.utils.geometric_range_from_central_angle`.
+
+        Parameters
+        ----------
+        height_terrain
+            Height of the terrain relative to the mean planet radius in [km],
+            if not a :class:`~astropy.units.Quantity`
+        height_platform
+            Height of the platform relative to the mean planet radius in [km],
+            if not a :class:`~astropy.units.Quantity`
+        look_angle
+            Look angle of the instrument in [rad], if not a
+            :class:`~astropy.units.Quantity`
+
+        Returns
+        -------
+        delay
+            Range delay [m]
+        attenuation
+            Two-way signal attenuation [dB]
+        """
+        # get profile-integrated values
+        apparent_range, attenuation, central_angle = self.get_range_attenuation_angle(
+            height_terrain, height_platform, look_angle
+        )
+        # use law of cosines to get geometric range
+        geometric_range = geometric_range_from_central_angle(
+            height_terrain, height_platform, central_angle
+        )
+        # get delay
+        delay = (apparent_range - geometric_range).to("m")
+        # done
+        return delay, attenuation
 
     @staticmethod
     def rel_permittivity_to_refraction(
