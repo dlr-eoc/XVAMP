@@ -661,6 +661,50 @@ class James1997(Reference):
         )
 
 
+class Jenkins2002(Reference):
+    """
+    Reference class that provides the profiles from :cite:t:`jenkins2002`.
+    """
+
+    BASEFOLDER = "jenkins_et_al_2002"
+    """ Base folder for data """
+
+    TABLES = ["fig6raw"]
+    """ Table numbers to load """
+
+    def __init__(self) -> None:
+        """
+        Initialize the model from the raw data.
+        """
+        # parent class
+        super().__init__()
+
+        # get local installation folder paths
+        datafolder = res_files(data) / self.BASEFOLDER
+
+        # load raw data files
+        self.tables = {
+            t: read_unit_csv(datafolder / f"table{t}.csv") for t in self.TABLES
+        }
+
+        # extract different H2SO4 profiles as a function of assumed SO2 abundance
+        for cn in self.tables["fig6raw"].colnames[::2]:
+            # get assumed SO2 abundance
+            assum_so2 = cn.split(":")[0]
+            # quick access to subtable
+            src_columns = [f"{assum_so2}: altitude", cn]
+            t = self.tables["fig6raw"][src_columns]
+            # get mask of valid rows
+            try:
+                mask = ~t[cn].mask
+            except AttributeError:  # not a masked quantity, so all rows valid
+                mask = np.s_[:]
+            # rename columns
+            t.rename_columns(src_columns, ["altitude", "mixing ratio of H2SO4"])
+            # save valid rows as new table
+            self.tables[assum_so2] = t[mask]
+
+
 class JPLSpectralLines(Reference):
     """
     Reference class that provides spectral lines from :cite:t:`pickett1998`.
@@ -1383,6 +1427,8 @@ duan2010figures = Duan2010Figures()
 """ Preloaded :class:`~Duan2010Figures` dataset """
 james1997 = James1997()
 """ Preloaded :class:`~James1997` dataset """
+jenkins2002 = Jenkins2002()
+""" Preloaded :class:`~Jenkins2002` dataset """
 jplspectrallines = JPLSpectralLines()
 """ Preloaded :class:`~JPLSpectralLines` dataset """
 keating1985 = Keating1985()

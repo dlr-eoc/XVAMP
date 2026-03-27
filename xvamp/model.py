@@ -31,6 +31,7 @@ from .reference import (
     cimino1982,
     duan2010figures,
     james1997,
+    jenkins2002,
     jplspectrallines,
     keating1985,
     kolodnersteffes1998,
@@ -784,7 +785,7 @@ class Duan2010(Model):
         use_compressible_gas: bool = True,
         use_keating_temp_press_above100km: bool = False,
         use_keating_co_co2_n2_above_100km: bool = False,
-        use_magellan_h2so4: bool | int = False,
+        use_h2so4_from: str = "duan",
         use_marcq_ocs: bool = False,
         add_ar: bool = False,
         cutoff_so2_frequency: Quantity["frequency"] | None = None,
@@ -824,13 +825,20 @@ class Duan2010(Model):
             atmosphere- and ionosphere-dominated permittivity profiles is at 100 km,
             and the ionosphere is modeled differently. It is only useful if one
             wants to load these quantities for later plotting.
-        use_magellan_h2so4
-            Whether to use one of the Magellan-derived H2SO4 profiles from
-            :cite:t:`jenkins1996` (if an integer) or their average from
-            :cite:t:`kolodner1998` (if ``True``) instead of the :cite:t:`duan2010`
-            profile (if ``False``).
-            This has a range delay effect on the millimeter scale, and an effect
-            on the two-way attenuation on the centidecibel scale.
+        use_h2so4_from
+            Define which H2SO4 profile to use though various string codes:
+
+            - ``"duan"``: Profile from :cite:t:`duan2010`, Fig. 7b (default)
+            - ``"kolodner"``: Average of the three X-band-derived profiles from
+              :cite:t:`kolodner1998`, Figs. 7-9. This adds about a tenth of a dB
+              attenuation and removes about 4 mm of delay.
+            - ``"jenkins:x"``: Profiles of :cite:t:`jenkins2002` for different assumed
+              SO2 abundances *x* (valid values: 0, 50, 100, 150, 200). This changes the
+              attenuation by about a tenth of a dB and the delay by some millimeters.
+            - ``"orbit:i"``: Raw H2SO4 profiles from :cite:t:`jenkins1996` for a given
+              Magellan orbit *i* (valid values: 3212, 3213, 3214). This changes the
+              attenuation by about a dB and the delay of some millimeters.
+
         use_marcq_ocs
             Whether to use the OCS profile from :cite:t:`marcq2006`
             instead of the :cite:t:`duan2010` profile.
@@ -899,7 +907,7 @@ class Duan2010(Model):
         # get the mixing ratios of the chemical species
         mixratios, comp_interpolators, comp_unit = Duan2010.get_composition(
             use_keating_co_co2_n2_above_100km=use_keating_co_co2_n2_above_100km,
-            use_magellan_h2so4=use_magellan_h2so4,
+            use_h2so4_from=use_h2so4_from,
             use_marcq_ocs=use_marcq_ocs,
             add_ar=add_ar,
         )
@@ -1406,7 +1414,7 @@ class Duan2010(Model):
     @staticmethod
     def get_composition(
         use_keating_co_co2_n2_above_100km: bool = False,
-        use_magellan_h2so4: bool | int = False,
+        use_h2so4_from: str = "duan",
         use_marcq_ocs: bool = False,
         add_ar: bool = False,
     ) -> Tuple[dict[str, pd.DataFrame], dict[str, Callable], Unit]:
@@ -1420,11 +1428,20 @@ class Duan2010(Model):
             CO, CO2, and N2 as continuation above the :cite:t:`duan2010`
             profiles (instead of continuing CO2 and N2 upwards as a constant,
             and setting CO to zero upwards of the highest value).
-        use_magellan_h2so4
-            Whether to use one of the Magellan-derived H2SO4 profiles from
-            :cite:t:`jenkins1996` (if an integer) or their average from
-            :cite:t:`kolodner1998` (if ``True``) instead of the :cite:t:`duan2010`
-            profile (if ``False``).
+        use_h2so4_from
+            Define which H2SO4 profile to use though various string codes:
+
+            - ``"duan"``: Profile from :cite:t:`duan2010`, Fig. 7b (default)
+            - ``"kolodner"``: Average of the three X-band-derived profiles from
+              :cite:t:`kolodner1998`, Figs. 7-9. This adds about a tenth of a dB
+              attenuation and removes about 4 mm of delay.
+            - ``"jenkins:x"``: Profiles of :cite:t:`jenkins2002` for different assumed
+              SO2 abundances *x* (valid values: 0, 50, 100, 150, 200). This changes the
+              attenuation by about a tenth of a dB and the delay by some millimeters.
+            - ``"orbit:i"``: Raw H2SO4 profiles from :cite:t:`jenkins1996` for a given
+              Magellan orbit *i* (valid values: 3212, 3213, 3214). This changes the
+              attenuation by about a dB and the delay of some millimeters.
+
         use_marcq_ocs
             Whether to use the OCS profile from :cite:t:`marcq2006`
             instead of the :cite:t:`duan2010` profile.
@@ -1519,9 +1536,22 @@ class Duan2010(Model):
         interpolators["SO2"] = duan2010figures.get_so2_density
 
         # H2SO4
-        if use_magellan_h2so4:
-            # use the average profiles from Kolodner & Steffes
-            if isinstance(use_magellan_h2so4, bool):
+        match use_h2so4_from.split(":"):
+            case ["duan"]:
+                # use the default profile
+                mixratios["H2SO4"] = pd.DataFrame(
+                    index=duan2010figures.H2SO4_FRACTION_NODES[:, 0],
+                    data={
+                        "H2SO4": duan2010figures.get_h2so4_density(
+                            duan2010figures.H2SO4_FRACTION_NODES[:, 0]
+                        )
+                        .to(comp_unit)
+                        .value
+                    },
+                )
+                interpolators["H2SO4"] = duan2010figures.get_h2so4_density
+            case ["kolodner"]:
+                # use the average profiles from Kolodner & Steffes
                 h2so4_alt = (
                     kolodnersteffes1998.tables["H2SO4 X-band"]["altitude"]
                     .to("km")
@@ -1532,19 +1562,37 @@ class Duan2010(Model):
                     .to(comp_unit)
                     .value
                 )
-            # use a specific orbit from Magellan
-            else:
+                # save
+                mixratios["H2SO4"] = pd.DataFrame(
+                    index=h2so4_alt, data={"H2SO4": h2so4_mr}
+                )
+            case ["jenkins", x] if int(x) in range(0, 250, 50):
+                # use one of the reprocessed profiles from Jenkins et al. 2002
+                h2so4_alt = (
+                    jenkins2002.tables[f"{x} ppm SO2"]["altitude"].to("km").value
+                )
+                h2so4_mr = (
+                    jenkins2002.tables[f"{x} ppm SO2"]["mixing ratio of H2SO4"]
+                    .to(comp_unit)
+                    .value
+                )
+                # save
+                mixratios["H2SO4"] = pd.DataFrame(
+                    index=h2so4_alt, data={"H2SO4": h2so4_mr}
+                )
+            case ["orbit", i] if int(i) in [3212, 3213, 3214]:
+                # use a specific orbit from Magellan's original dataset
                 temp = magellan321x.tables["mgn_abs"]
                 # extract X-band data for the given orbit
                 temp = temp[
                     np.logical_and(
                         temp["WAVELENGTH"] == "S",
-                        temp["ORBIT_NUMBER"] == use_magellan_h2so4,
+                        temp["ORBIT_NUMBER"] == int(i),
                     )
                 ]
                 if len(temp) == 0:
                     raise ValueError(
-                        f"The Magellan orbit {use_magellan_h2so4} seems "
+                        f"The Magellan orbit {use_h2so4_from} seems "
                         "to not produce any H2SO4 profile."
                     )
                 # convert to altitude-indexed mixing ratio
@@ -1552,20 +1600,12 @@ class Duan2010(Model):
                 h2so4_mr = np.clip(
                     temp["H2SO4_VOLMIX"].to(comp_unit).value, a_min=0, a_max=None
                 )
-            # save
-            mixratios["H2SO4"] = pd.DataFrame(index=h2so4_alt, data={"H2SO4": h2so4_mr})
-        else:
-            mixratios["H2SO4"] = pd.DataFrame(
-                index=duan2010figures.H2SO4_FRACTION_NODES[:, 0],
-                data={
-                    "H2SO4": duan2010figures.get_h2so4_density(
-                        duan2010figures.H2SO4_FRACTION_NODES[:, 0]
-                    )
-                    .to(comp_unit)
-                    .value
-                },
-            )
-            interpolators["H2SO4"] = duan2010figures.get_h2so4_density
+                # save
+                mixratios["H2SO4"] = pd.DataFrame(
+                    index=h2so4_alt, data={"H2SO4": h2so4_mr}
+                )
+            case _:
+                raise ValueError(f"Unknown H2SO4 source {use_h2so4_from=}")
 
         # CO
         co_alt = duan2010figures.CO_FRACTION_NODES[:, 0]
