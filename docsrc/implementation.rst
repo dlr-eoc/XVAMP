@@ -222,17 +222,40 @@ However, the paper version is available as an option (``use_cimino_clouds=False`
    This has a **significant** impact on the final attenuation values,
    and a negligible one on the final delay values.
 
-Polarization and absorption of OCS
-''''''''''''''''''''''''''''''''''
+Kramers-Krönig rule for SO2 and OCS relative permittivity
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
-*Still needs to be written - the reference code only includes OCS absorption,
-whereas XVAMP and the study include both. There are also discrepancies in the
-models used (spectral line shapes and broadening coefficients), which is currently
-being finalized.*
+The Kramers-Krönig relationship is used in the paper to derive the real part of the
+relative permittivity from the imaginary part (which, in turn, is derived from
+the absorption). In this step, the value of the real part of the relative
+permittivity at infinite frequency needs to be known or assumed. Both the paper
+and the reference code contain such values for both SO2 and OCS; however, their
+source is not known anymore. This is why XVAMP, for general consistency and
+traceability, chooses 1 as their value, which is the theoretical value at infinite
+frequencies for all media.
 
 .. note::
 
-   This should have a negligible impact on the final delay or attenuation values.
+   Since these are minor changes in the resulting real part of the relative
+   permittivity of SO2 and OCS, and these in turn are only small contributors to
+   the total absorption and delay profiles, this change yields only a centimeter-level
+   delay difference and negligible attenuation difference.
+
+Polarization and absorption of OCS
+''''''''''''''''''''''''''''''''''
+
+There are some discrepancies in the way OCS is added into the atmospheric model.
+The paper uses a Lorentzian line shape to compute its absorption and attenuation,
+while the reference code uses a Ben-Reuven line expression for the absorption
+(using line shape parameters of SO2 for lack of better data) but does not compute
+the attenuation. XVAMP, for consistency, uses a Ben-Reuven line expression for
+both absorption and attenuation, and uses shape parameters derived for OCS
+(albeit very approximately).
+
+.. note::
+
+   Since OCS is such a minor constituent, the different options have a sub-millimeter
+   effect on the delay and a milli-decibel effect on the attenuation.
 
 Polarization of H2SO4
 '''''''''''''''''''''

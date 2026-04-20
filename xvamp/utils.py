@@ -155,27 +155,29 @@ class Pitzer1983Parameters:
 
 
 @dataclass
-class BenReuvenParameters:
+class LineShapeParameters:
     """
-    Parameters for the Ben-Reuven line shape function, following the
-    notation from :cite:t:`duan2010`, eqs. (27-32) on p. 10f.
+    Line shape parameters compatible with the Ben-Reuven line shape function, following
+    the notation from :cite:t:`duan2010`, eqs. (27-32) on p. 10f.
+    Can be used for Lorentzian line shapes if only specifying
+    :attr:`~LineShapeParameters.gamma_min_min`.
     """
 
     T_0: Quantity["K"]
     """ Reference temperature of broadening coefficients [K] """
-    gamma_min_maj: Quantity["MHz/torr"]
-    """ Foreign-broadened linewidth parameter [MHz/torr] """
     gamma_min_min: Quantity["MHz/torr"]
     """ Self-broadened linewidth parameter [MHz/torr] """
-    zeta_min_maj: Quantity["MHz/torr"]
-    """ Foreign-coupling parameter [MHz/torr] """
-    zeta_min_min: Quantity["MHz/torr"]
+    gamma_min_maj: Quantity["MHz/torr"] = Quantity(0, "MHz/torr")
+    """ Foreign-broadened linewidth parameter [MHz/torr] """
+    zeta_min_min: Quantity["MHz/torr"] = Quantity(0, "MHz/torr")
     """ Self-coupling linewidth parameter [MHz/torr] """
-    delta_min: Quantity["MHz/torr"]
+    zeta_min_maj: Quantity["MHz/torr"] = Quantity(0, "MHz/torr")
+    """ Foreign-coupling parameter [MHz/torr] """
+    delta_min: Quantity["MHz/torr"] = Quantity(0, "MHz/torr")
     """ Frequency shift parameter [MHz/torr] """
-    m: float
+    m: float = 0.0
     """ Temperature dependence of the coupling [-] """
-    n: float
+    n: float = 0.0
     """ Temperature dependence of the linewidth [-] """
 
 

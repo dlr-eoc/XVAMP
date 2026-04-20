@@ -24,8 +24,8 @@ Onboard model
 Parameter sets
 --------------
 
-.. autoclass:: xvamp.model.BenReuvenParameters
-
 .. autoclass:: xvamp.model.HarveyLemmon2005Parameters
+
+.. autoclass:: xvamp.model.LineShapeParameters
 
 .. autoclass:: xvamp.model.Pitzer1983Parameters

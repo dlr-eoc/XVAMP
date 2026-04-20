@@ -25,7 +25,7 @@ from .utils import (
     read_polarization_parameters,
     HarveyLemmon2005Parameters,
     Pitzer1983Parameters,
-    BenReuvenParameters,
+    LineShapeParameters,
 )
 from .reference import (
     cimino1982,
@@ -686,8 +686,6 @@ class Duan2010(Model):
     """ Mixture parameters for N2 in cgs units """
 
     # constants relating to carbonyl sulfide (OCS or COS)
-    EPS_PRIME_R_INF_OCS = Quantity(1.0031248, u.dimensionless_unscaled)
-    """ Estimated dielectric constant of SO2 at infinite frequency """
     P_OCS = Quantity(101325, "Pa")
     """ Pressure at which the dielectric constant for OCS was calculated """
     T_OCS = Quantity(273.18, "K")
@@ -696,21 +694,34 @@ class Duan2010(Model):
     """ Molar density from ``P_OCS`` and ``T_OCS`` """
     MU_OCS = Quantity(0.71521e-18, ESU_CM)
     """ Permanent dipole moment of OCS [esu cm] """
-    BR_OCS_CO2 = BenReuvenParameters(
+    BR_SO2_AS_OCS_CO2 = LineShapeParameters(
         T_0=Quantity(300, "K"),
         gamma_min_maj=Quantity(7.2, "MHz/torr"),
         gamma_min_min=Quantity(16, "MHz/torr"),
-        zeta_min_maj=Quantity(0, "MHz/torr"),
-        zeta_min_min=Quantity(0, "MHz/torr"),
-        delta_min=Quantity(0, "MHz/torr"),
         m=0.85,
         n=0.85,
     )
-    """ Ben-Reuven line parameters for OCS in CO2 """
+    """
+    Ben-Reuven line parameters for OCS in CO2 derived from the SO2 in CO2 parameters
+    but setting zeta and delta to zero
+    """
+    BR_OCS_CO2 = LineShapeParameters(
+        T_0=Quantity(300, "K"),
+        gamma_min_maj=Quantity(4.3, "MHz/torr"),
+        gamma_min_min=Quantity(5.9, "MHz/torr"),
+        m=0.7,
+        n=0.7,
+    )
+    """
+    Ben-Reuven line parameters for OCS in CO2 based on visual inspection of
+    :cite:t:`bouanich1988` and :cite:t:`lavrentieva2020`
+    """
+    L_OCS = LineShapeParameters(
+        T_0=Quantity(300, "K"), gamma_min_min=Quantity(6.4, "MHz/torr")
+    )
+    """ Lorentzian line parameters for OCS from :cite:t:`kolbe1977` """
 
     # constants relating to sulfur dioxide (SO2)
-    EPS_PRIME_R_INF_SO2 = Quantity(1.00587032, u.dimensionless_unscaled)
-    """ Estimated dielectric constant of SO2 at infinite frequency """
     P_SO2 = Quantity(101325, "Pa")
     """ Pressure at which the dielectric constant for SO2 was calculated """
     T_SO2 = Quantity(273.15, "K")
@@ -719,7 +730,7 @@ class Duan2010(Model):
     """ Molar density from ``P_SO2`` and ``T_SO2`` """
     MU_SO2 = Quantity(1.633e-18, ESU_CM)
     """ Permanent dipole moment of SO2 [esu cm] """
-    BR_SO2_CO2 = BenReuvenParameters(
+    BR_SO2_CO2 = LineShapeParameters(
         T_0=Quantity(300, "K"),
         gamma_min_maj=Quantity(7.2, "MHz/torr"),
         gamma_min_min=Quantity(16, "MHz/torr"),
@@ -792,7 +803,7 @@ class Duan2010(Model):
         use_marcq_ocs: bool = False,
         add_ar: bool = False,
         cutoff_so2_frequency: Quantity["frequency"] | None = None,
-        use_kolbe_ocs: bool = False,
+        use_ocs_from: str = "duan",
         use_virial_approximation: bool = True,
         use_cimino_clouds: bool = True,
         use_cimino_fitted_lookup: bool = False,
@@ -855,9 +866,19 @@ class Duan2010(Model):
             When computing the absorption coefficient of SO2, include all spectral
             lines up to this frequency. If ``None``, use all available ones.
             This option is only kept for development purposes.
-        use_kolbe_ocs
-            Whether to use the :cite:t:`kolbe1977`, Lorentzian-based approach to
-            compute the absorption coefficient from OCS, or not.
+        use_ocs_from
+            Define which model to use to compute the absorption and polarization
+            profiles of OCS.
+
+            - ``"duan"``: Using a Ben-Reuven line shape derived from SO2 (default)
+            - ``"kolbe"``: Using a Lorentzian line shape as described in the paper
+              and following :cite:t:`kolbe1977`
+            - ``"bbld"``: Using a Ben-Reuven line shape with parameters derived
+              approximately from :cite:t:`bouanich1988` and :cite:t:`lavrentieva2020`.
+
+            Since OCS is such a minor constituent, the different options have a
+            sub-millimeter effect on the delay and a milli-decibel effect on the
+            attenuation.
         use_virial_approximation
             Whether to use the leading terms of the virial approximation to calculate
             the total polarization of the polar species (from Harvey & Lemmon, 2005),
@@ -1036,7 +1057,9 @@ class Duan2010(Model):
         # check if we should recompute them
         if load_polarization_parameters == False:
             self.polarization_parameters = Duan2010.get_polarization_parameters(
-                add_ar=add_ar, use_virial_approximation=use_virial_approximation
+                add_ar=add_ar,
+                use_ocs_from=use_ocs_from,
+                use_virial_approximation=use_virial_approximation,
             )
         # or load them (either the defaults or from a file)
         else:
@@ -1049,7 +1072,7 @@ class Duan2010(Model):
         # everything else depends on the current state
         self.update_pol_absorp_atmosphere(
             cutoff_so2_frequency=cutoff_so2_frequency,
-            use_kolbe_ocs=use_kolbe_ocs,
+            use_ocs_from=use_ocs_from,
             use_cimino_clouds=use_cimino_clouds,
             use_cimino_fitted_lookup=use_cimino_fitted_lookup,
         )
@@ -1132,7 +1155,7 @@ class Duan2010(Model):
     def update_pol_absorp_atmosphere(
         self,
         cutoff_so2_frequency: Quantity["frequency"] | None = None,
-        use_kolbe_ocs: bool = False,
+        use_ocs_from: str = "duan",
         use_cimino_clouds: bool = True,
         use_cimino_fitted_lookup: bool = False,
     ):
@@ -1148,9 +1171,16 @@ class Duan2010(Model):
             When computing the absorption coefficient of SO2, include all spectral
             lines up to this frequency. If ``None``, use all available ones.
             This option is only kept for development purposes.
-        use_kolbe_ocs
-            Whether to use the :cite:t:`kolbe1977`, Lorentzian-based approach to
-            compute the absorption coefficient from OCS, or not.
+        use_ocs_from
+            Define which model to use to compute the absorption and polarization
+            profiles of OCS.
+
+            - ``"duan"``: Using a Ben-Reuven line shape derived from SO2 (default)
+            - ``"kolbe"``: Using a Lorentzian line shape as described in the paper
+              and following :cite:t:`kolbe1977`
+            - ``"bbld"``: Using a Ben-Reuven line shape with parameters derived
+              approximately from :cite:t:`bouanich1988` and :cite:t:`lavrentieva2020`.
+
         use_cimino_clouds
             Whether to use the polarization and absorption equations for the clouds in
             :cite:t:`cimino1982`, eq. (10) and (16), or sections 2.1.5 and 2.2.5
@@ -1183,7 +1213,7 @@ class Duan2010(Model):
         # sections 2.2.1-2.2.4: absorptions from species
         self.absorptions = self.evaluate_absorptions(
             cutoff_so2_frequency=cutoff_so2_frequency,
-            use_kolbe_ocs=use_kolbe_ocs,
+            use_ocs_from=use_ocs_from,
         )
 
         # sections 2.1.5 and 2.2.5: clouds
@@ -1628,7 +1658,6 @@ class Duan2010(Model):
             interpolators["CO"] = duan2010figures.get_co_density
 
         # OCS
-        # NOTE: only the imaginary contribution is considered currently
         if use_marcq_ocs:
             mixratios["OCS"] = marcq2006.tables["fig8"].to_pandas(index="altitude")
             mixratios["OCS"].rename(
@@ -1765,6 +1794,7 @@ class Duan2010(Model):
     @staticmethod
     def get_polarization_parameters(
         add_ar: bool = False,
+        use_ocs_from: str = "duan",
         use_virial_approximation: bool = True,
     ) -> dict[str, HarveyLemmon2005Parameters | Pitzer1983Parameters]:
         """
@@ -1775,6 +1805,16 @@ class Duan2010(Model):
         ----------
         add_ar
             Whether to add a constant value for Argon into the mixture.
+        use_ocs_from
+            Define which model to use to compute the absorption and polarization
+            profiles of OCS.
+
+            - ``"duan"``: Using a Ben-Reuven line shape derived from SO2 (default)
+            - ``"kolbe"``: Using a Lorentzian line shape as described in the paper
+              and following :cite:t:`kolbe1977`
+            - ``"bbld"``: Using a Ben-Reuven line shape with parameters derived
+              approximately from :cite:t:`bouanich1988` and :cite:t:`lavrentieva2020`.
+
         use_virial_approximation
             Whether to use the leading terms of the virial approximation to calculate
             the total polarization of the polar species (from Harvey & Lemmon, 2005),
@@ -1813,7 +1853,6 @@ class Duan2010(Model):
             Duan2010.P_SO2,
             jplspectrallines.tables["SO2"],
             Duan2010.BR_SO2_CO2,
-            Duan2010.EPS_PRIME_R_INF_SO2,
             VISAR_FREQUENCY,
         )
         # convert to polarization
@@ -1909,14 +1948,34 @@ class Duan2010(Model):
         # section 2.1.4.5: OCS
         # get real part of the permittivity from integrating through
         # the spectral lines
-        eps_prime_r_ocs = Duan2010.eps_prime_r_from_spectral_lines(
-            Duan2010.T_OCS,
-            Duan2010.P_OCS,
-            jplspectrallines.tables["OCS"],
-            Duan2010.BR_OCS_CO2,
-            Duan2010.EPS_PRIME_R_INF_OCS,
-            VISAR_FREQUENCY,
-        )
+        match use_ocs_from:
+            case "kolbe":
+                eps_prime_r_ocs = Duan2010.eps_prime_r_from_spectral_lines(
+                    Duan2010.T_OCS,
+                    Duan2010.P_OCS,
+                    jplspectrallines.tables["OCS"],
+                    Duan2010.L_OCS,
+                    VISAR_FREQUENCY,
+                    use_ben_reuven=False,
+                )
+            case "duan":
+                eps_prime_r_ocs = Duan2010.eps_prime_r_from_spectral_lines(
+                    Duan2010.T_OCS,
+                    Duan2010.P_OCS,
+                    jplspectrallines.tables["OCS"],
+                    Duan2010.BR_SO2_AS_OCS_CO2,
+                    VISAR_FREQUENCY,
+                )
+            case "bbld":
+                eps_prime_r_ocs = Duan2010.eps_prime_r_from_spectral_lines(
+                    Duan2010.T_OCS,
+                    Duan2010.P_OCS,
+                    jplspectrallines.tables["OCS"],
+                    Duan2010.BR_OCS_CO2,
+                    VISAR_FREQUENCY,
+                )
+            case _:
+                raise ValueError(f"Unknown OCS model {use_ocs_from=}")
         # convert to polarization
         Pnu_OCS = Duan2010.eq2(eps_prime_r_ocs)
         if use_virial_approximation:
@@ -2091,7 +2150,7 @@ class Duan2010(Model):
     def evaluate_absorptions(
         self,
         cutoff_so2_frequency: Quantity["frequency"] | None = None,
-        use_kolbe_ocs: bool = False,
+        use_ocs_from: str = "duan",
     ) -> astrotable.QTable:
         """
         Evaluate the absorption models given the model's atmospheric quantities.
@@ -2102,9 +2161,16 @@ class Duan2010(Model):
             When computing the absorption coefficient of SO2, include all spectral
             lines up to this frequency. If ``None``, use all available ones.
             This option is only kept for development purposes.
-        use_kolbe_ocs
-            Whether to use the :cite:t:`kolbe1977`, Lorentzian-based approach to
-            compute the absorption coefficient from OCS, or not.
+        use_ocs_from
+            Define which model to use to compute the absorption and polarization
+            profiles of OCS.
+
+            - ``"duan"``: Using a Ben-Reuven line shape derived from SO2 (default)
+            - ``"kolbe"``: Using a Lorentzian line shape as described in the paper
+              and following :cite:t:`kolbe1977`
+            - ``"bbld"``: Using a Ben-Reuven line shape with parameters derived
+              approximately from :cite:t:`bouanich1988` and :cite:t:`lavrentieva2020`.
+
 
         Returns
         -------
@@ -2136,7 +2202,7 @@ class Duan2010(Model):
                 jplspectrallines.tables["SO2"]["FREQ"] < cutoff_so2_frequency
             ]
         )
-        absorptions["SO2"] = Duan2010.eq27(
+        absorptions["SO2"] = Duan2010.absorption_ben_reuven(
             self.temperature,
             self.molar_fractions["SO2"] * self.pressure,
             self.molar_fractions["CO2"] * self.pressure,
@@ -2154,21 +2220,35 @@ class Duan2010(Model):
         )
 
         # section 2.2.4: OCS
-        if use_kolbe_ocs:
-            absorptions["OCS"] = Duan2010.kolbe_ocs(
-                self.temperature,
-                self.molar_fractions["OCS"] * self.pressure,
-                jplspectrallines.tables["OCS"],
-            )
-        else:
-            absorptions["OCS"] = Duan2010.eq27(
-                self.temperature,
-                self.molar_fractions["OCS"] * self.pressure,
-                self.molar_fractions["CO2"] * self.pressure,
-                jplspectrallines.tables["OCS"],
-                VISAR_FREQUENCY,
-                Duan2010.BR_OCS_CO2,
-            ).squeeze()
+        match use_ocs_from:
+            case "kolbe":
+                absorptions["OCS"] = Duan2010.absorption_lorentz(
+                    self.temperature,
+                    self.molar_fractions["OCS"] * self.pressure,
+                    jplspectrallines.tables["OCS"],
+                    VISAR_FREQUENCY,
+                    Duan2010.L_OCS,
+                ).squeeze()
+            case "duan":
+                absorptions["OCS"] = Duan2010.absorption_ben_reuven(
+                    self.temperature,
+                    self.molar_fractions["OCS"] * self.pressure,
+                    self.molar_fractions["CO2"] * self.pressure,
+                    jplspectrallines.tables["OCS"],
+                    VISAR_FREQUENCY,
+                    Duan2010.BR_SO2_AS_OCS_CO2,
+                ).squeeze()
+            case "bbld":
+                absorptions["OCS"] = Duan2010.absorption_ben_reuven(
+                    self.temperature,
+                    self.molar_fractions["OCS"] * self.pressure,
+                    self.molar_fractions["CO2"] * self.pressure,
+                    jplspectrallines.tables["OCS"],
+                    VISAR_FREQUENCY,
+                    Duan2010.BR_OCS_CO2,
+                ).squeeze()
+            case _:
+                raise ValueError(f"Unknown OCS model {use_ocs_from=}")
 
         # done
         return absorptions
@@ -2576,17 +2656,17 @@ class Duan2010(Model):
         return Quantity(alpha / 2, "1/cm")
 
     @staticmethod
-    def eq27(
+    def absorption_ben_reuven(
         T: Quantity["temperature"],
         P_minor: Quantity["pressure"],
         P_major: Quantity["pressure"],
         spectral_lines: astrotable.QTable,
         nu: Quantity["frequency"],
-        br_params: BenReuvenParameters,
+        ls_params: LineShapeParameters,
     ) -> Quantity:
         """
-        Calculates all absorptions from a spectral line catalog
-        and line broadening coefficients as described in
+        Calculates the absorption by summing contributions from a spectral line catalog
+        and using Ben-Reuven line broadening coefficients as described in
         eqs. (27-32) on pp. 10f.
 
         Parameters
@@ -2603,16 +2683,21 @@ class Duan2010(Model):
             and lower state energies El [1/cm]
         nu
             Target frequency of the absorption [Hz]
-        br_params
-            Parameters for the Ben-Reuven line expression
+        ls_params
+            Line shape parameters for the Ben-Reuven expression
 
         Returns
         -------
             Total absorption [1/cm]
         """
+        # prepare input
+        T = np.atleast_1d(T)
+        P_minor = np.atleast_1d(P_minor)
+        P_major = np.atleast_1d(P_major)
+        nu = np.atleast_1d(nu)
         # prepare output
         alpha = np.full((T.size, nu.size), np.nan)
-        assert len(T) == len(P_minor) == len(P_major)
+        assert T.shape == P_minor.shape == P_major.shape
         data_valid = np.logical_or(P_minor > 0, P_major > 0)
         # convert all input quantities to unit-defined NumPy arrays
         # so we can make effective use of broadcasting
@@ -2625,16 +2710,16 @@ class Duan2010(Model):
         I = spectral_lines["LGINT"].physical.to("nm2 MHz").value[None, :, None]
         El = spectral_lines["ELO"].to("1/cm").value[None, :, None]
         # third axis: frequencies to compute results for
-        nu = np.atleast_1d(nu.to("MHz").value)[None, None, :]
+        nu = nu.to("MHz").value[None, None, :]
         # get Ben-Reuven parameters in correct units
-        T_0 = br_params.T_0.to("K").value
-        gamma_min_maj = br_params.gamma_min_maj.to("MHz/torr").value
-        gamma_min_min = br_params.gamma_min_min.to("MHz/torr").value
-        zeta_min_maj = br_params.zeta_min_maj.to("MHz/torr").value
-        zeta_min_min = br_params.zeta_min_min.to("MHz/torr").value
-        delta_min = br_params.delta_min.to("MHz/torr").value
-        m = br_params.m
-        n = br_params.n
+        T_0 = ls_params.T_0.to("K").value
+        gamma_min_maj = ls_params.gamma_min_maj.to("MHz/torr").value
+        gamma_min_min = ls_params.gamma_min_min.to("MHz/torr").value
+        zeta_min_maj = ls_params.zeta_min_maj.to("MHz/torr").value
+        zeta_min_min = ls_params.zeta_min_min.to("MHz/torr").value
+        delta_min = ls_params.delta_min.to("MHz/torr").value
+        m = ls_params.m
+        n = ls_params.n
         # eq. (32) [MHz]
         delta = delta_min * P_minor
         # eq. (31) [MHz]
@@ -2674,57 +2759,65 @@ class Duan2010(Model):
         return Quantity(alpha, "1/cm")
 
     @staticmethod
-    def kolbe_ocs(
-        T: Quantity,
-        P_OCS: Quantity,
-        spectral_lines_OCS: astrotable.QTable,
-        nu: Quantity = VISAR_FREQUENCY,
+    def absorption_lorentz(
+        T: Quantity["temperature"],
+        P: Quantity["pressure"],
+        spectral_lines: astrotable.QTable,
+        nu: Quantity["frequency"],
+        ls_params: LineShapeParameters,
     ) -> Quantity:
         """
-        Calculates all absorptions for the OCS spectral line catalog
-        as described in Section 2.2.4, using data from :cite:t:`kolbe1977`
-        and a Lorentzian line shape.
+        Calculates the absorption by summing contributions from a spectral line catalog
+        as described in eqs. (27-32) on pp. 10f but using Lorentzian line broadening
+        coefficients.
 
         Parameters
         ----------
         T
             Temperature [K]
-        P_OCS
-            Partial pressure of OCS [torr]
-        spectral_lines_OCS
-            OCS spectral line catalog containing line frequencies nu [MHz],
-            line center intensities I [nm^2 MHz], and lower state energies El [1/cm]
+        P
+            Partial pressure [torr]
+        spectral_lines
+            Spectral line catalog for the species containing line
+            frequencies nu [MHz], line center intensities I [nm^2 MHz],
+            and lower state energies El [1/cm]
         nu
             Target frequency of the absorption [Hz]
+        ls_params
+            Line shape parameters; only `gamma_min_min` is used as the line width
 
         Returns
         -------
-            Total absorption due to OCS [1/cm]
+            Total absorption [1/cm]
         """
+        # prepare input
+        T = np.atleast_1d(T)
+        P = np.atleast_1d(P)
+        nu = np.atleast_1d(nu)
         # prepare output
-        alpha = np.full(len(T), np.nan)
-        data_valid = P_OCS > 0
+        alpha = np.full((T.size, nu.size), np.nan)
+        assert T.shape == P.shape
+        data_valid = P > 0
         # convert all input quantities to unit-defined NumPy arrays
         # so we can make effective use of broadcasting
-        # column: atmospheric parameters
-        T = T.to("K").value[data_valid, None]
-        P_OCS = P_OCS.to("torr").value[data_valid, None]
-        nu = nu.to("MHz").value
-        # SO2 parameters
-        T0 = 300  # [K]
-        gamma_OCS_OCS = 6.4  # [MHz/torr]
-        # read spectral line catalog
-        nu_0 = spectral_lines_OCS["FREQ"].to("MHz").value[None, :]
-        I = spectral_lines_OCS["LGINT"].physical.to("nm2 MHz").value[None, :]
-        El = spectral_lines_OCS["ELO"].to("1/cm").value[None, :]
+        # first axis: atmospheric parameters
+        T = T.to("K").value[data_valid, None, None]
+        P = P.to("torr").value[data_valid, None, None]
+        # second axis: spectral line catalog
+        nu_0 = spectral_lines["FREQ"].to("MHz").value[None, :, None]
+        I = spectral_lines["LGINT"].physical.to("nm2 MHz").value[None, :, None]
+        El = spectral_lines["ELO"].to("1/cm").value[None, :, None]
+        # third axis: frequencies to compute results for
+        nu = nu.to("MHz").value[None, None, :]
         # get line widths at frequencies
-        gamma = gamma_OCS_OCS * P_OCS
+        T0 = ls_params.T_0.to("K").value
+        gamma = ls_params.gamma_min_min.to("MHz/torr").value * P
         # Lorentzian line shape function [1/MHz]
         F_L = gamma / (np.pi * ((nu_0 - nu) ** 2 + gamma**2))
         # eq. (28) [1/cm]
         alpha_max = Quantity(
             102.46
-            * P_OCS
+            * P
             / gamma
             * I
             * (T0 / T) ** (7 / 2)
@@ -2834,12 +2927,12 @@ class Duan2010(Model):
         T: Quantity["temperature"],
         P: Quantity["pressure"],
         spectral_lines: astrotable.QTable,
-        br_params: BenReuvenParameters,
-        eps_prime_r_inf: Quantity["dimensionless"],
+        ls_params: LineShapeParameters,
         nu: Quantity["frequency"],
-        freqmin: Quantity["frequency"] = Quantity(0.1, "MHz"),
-        freqmax: Quantity["frequency"] = Quantity(4, "THz"),
         freqstep: Quantity["frequency"] = Quantity(0.1, "GHz"),
+        freqmin: Quantity["frequency"] | None = None,
+        freqmax: Quantity["frequency"] | None = None,
+        use_ben_reuven: bool = True,
     ):
         """
         Computes the real part of the relative permittivity by integrating
@@ -2855,59 +2948,104 @@ class Duan2010(Model):
             Spectral line catalog for the minor species containing line
             frequencies nu [MHz], line center intensities I [nm^2 MHz],
             and lower state energies El [1/cm]
+        ls_params
+            Parameters for the Ben-Reuven line expression
         nu
             Target frequency of the absorption [Hz]
-        br_params
-            Parameters for the Ben-Reuven line expression
-        eps_prime_r_inf
-            Real part of the relative permittivity at infinite frequency
-        freqmin
-            Minimum frequency of the integration domain
-        freqmax
-            Maximum frequency of the integration domain
         freqstep
             Frequency step of the integration domain
+        freqmin
+            Minimum frequency of the integration domain
+            (defaults to minimum frequency of ``spectral_lines``).
+            Below that, five log-spaced samples at lower orders of magnitude are
+            added for numerical stability
+        freqmax
+            Maximum frequency of the densely-sampled integration domain
+            (defaults to maximum frequency of ``spectral_lines``).
+            Above that, five log-spaced samples at higher orders of magnitude are
+            added for numerical stability.
+        use_ben_reuven
+            If ``True``, use the Ben-Reuven line expression, else use a Lorentzian
+            line shape for the computation of the absorption.
 
         Returns
         -------
             Real part of the relative permittivity
         """
         # get integration domain
-        freqrange = Quantity(
-            np.arange(
-                freqmin.to("GHz").value,
-                freqmax.to("GHz").value,
-                freqstep.to("GHz").value,
-            ),
-            "GHz",
+        if freqmin is None:
+            freqmin = np.min(spectral_lines["FREQ"])
+        freqmin = min(freqmin, freqstep)
+        if freqmax is None:
+            freqmax = np.max(spectral_lines["FREQ"])
+        freqmin_Hz = freqmin.to("Hz").value
+        freqmax_Hz = freqmax.to("Hz").value
+        freqstep_Hz = freqstep.to("Hz").value
+        freqsing_Hz = nu.to("Hz").value
+        freqrange_raw = np.arange(freqmin_Hz, freqmax_Hz, freqstep_Hz)
+        # offset the frequency range to have the singularity exactly between two samples
+        freqrange_raw += (freqsing_Hz - freqmin_Hz + freqstep_Hz / 2) % freqstep_Hz
+        assert freqrange_raw[0] <= freqsing_Hz <= freqrange_raw[-1]
+        # create samples close to the singularity
+        singtol_Hz = 1e-5 * (freqstep_Hz / 2)
+        singfreqs_raw = np.geomspace(singtol_Hz, freqstep_Hz / 2, num=5, endpoint=False)
+        insert_middle = np.r_[
+            freqsing_Hz - singfreqs_raw[::-1],
+            freqsing_Hz + singfreqs_raw,
+        ]
+        # create samples before and after the main frequency range
+        insert_before = np.geomspace(
+            1e-5 * freqrange_raw[0],
+            freqrange_raw[0],
+            num=5,
+            endpoint=False,
         )
-        freqdiff = freqrange - nu
-        # mask out singularities
-        freqdiff[np.abs(freqdiff) < freqstep / 2] = np.nan
+        insert_after = np.geomspace(
+            1e1 * freqrange_raw[-1],
+            1e5 * freqrange_raw[-1],
+            num=5,
+            endpoint=True,
+        )
+        # combine the different frequency ranges
+        i_aftersing = np.argmax(freqrange_raw > freqsing_Hz)
+        extrange = np.r_[
+            insert_before,
+            freqrange_raw[:i_aftersing],
+            insert_middle,
+            freqrange_raw[i_aftersing:],
+            insert_after,
+        ]
+        freqrange = Quantity(extrange, "Hz")
         # compute absorption coefficient
-        alpha = Duan2010.eq27(
-            np.atleast_1d(T),
-            np.atleast_1d(P),
-            Quantity([0], "atm"),
-            spectral_lines,
-            freqrange,
-            br_params,
-        ).squeeze()
+        if use_ben_reuven:
+            alpha = Duan2010.absorption_ben_reuven(
+                np.atleast_1d(T),
+                np.atleast_1d(P),
+                Quantity([0], "atm"),
+                spectral_lines,
+                freqrange,
+                ls_params,
+            ).squeeze()
+        else:
+            alpha = Duan2010.absorption_lorentz(
+                np.atleast_1d(T),
+                np.atleast_1d(P),
+                spectral_lines,
+                freqrange,
+                ls_params,
+            ).squeeze()
         # convert from absorption coefficient to imaginary part of the
         # relative permittivity
         eps_dprime = (
             alpha / freqrange.to("1/cm", equivalencies=u.spectral()) / (2 * np.pi)
         ).decompose()
-        # integrate through profile
-        delta_eps_prime_r = (
-            np.trapezoid(
-                np.nan_to_num((eps_dprime / freqdiff).to("1/GHz").value),
-                x=freqrange.to("GHz").value,
-            )
-            / np.pi
+        # use Kramers-Krönig equation to compute the real part of the relative
+        # permittivity from the imaginary part, assuming eps_prime_r(infinity) = 1
+        freqsqdiff = freqrange**2 - nu**2
+        integrand = (freqrange * eps_dprime / freqsqdiff).to("1/GHz").value
+        eps_prime_r = (
+            1 + 2 * np.trapezoid(integrand, x=freqrange.to("GHz").value) / np.pi
         )
-        # add to infinite value
-        eps_prime_r = eps_prime_r_inf + delta_eps_prime_r
         # done
         return Quantity(eps_prime_r, u.dimensionless_unscaled)
 
@@ -2933,11 +3071,11 @@ class VariableProfiles(Duan2010):
         use_compressible_gas: bool = True,
         use_keating_temp_press_above100km: bool = False,
         use_keating_co_co2_n2_above_100km: bool = False,
-        use_magellan_h2so4: bool | int = False,
+        use_h2so4_from: str = "duan",
         use_marcq_ocs: bool = False,
         add_ar: bool = False,
         cutoff_so2_frequency: Quantity["frequency"] | None = None,
-        use_kolbe_ocs: bool = False,
+        use_ocs_from: str = "duan",
         use_virial_approximation: bool = True,
         use_cimino_clouds: bool = True,
         use_cimino_fitted_lookup: bool = False,
@@ -2953,7 +3091,7 @@ class VariableProfiles(Duan2010):
         # save init variables for later use
         self._add3K = add_3K
         self._cutoff_so2_frequency = cutoff_so2_frequency
-        self._use_kolbe_ocs = use_kolbe_ocs
+        self._use_ocs_from = use_ocs_from
         self._use_cimino_clouds = use_cimino_clouds
         self._use_cimino_fitted_lookup = use_cimino_fitted_lookup
         # call parent initializer
@@ -2961,11 +3099,11 @@ class VariableProfiles(Duan2010):
             use_compressible_gas,
             use_keating_temp_press_above100km,
             use_keating_co_co2_n2_above_100km,
-            use_magellan_h2so4,
+            use_h2so4_from,
             use_marcq_ocs,
             add_ar,
             cutoff_so2_frequency,
-            use_kolbe_ocs,
+            use_ocs_from,
             use_virial_approximation,
             use_cimino_clouds,
             use_cimino_fitted_lookup,
@@ -3134,7 +3272,7 @@ class VariableProfiles(Duan2010):
         self.update_densities()
         self.update_pol_absorp_atmosphere(
             cutoff_so2_frequency=self._cutoff_so2_frequency,
-            use_kolbe_ocs=self._use_kolbe_ocs,
+            use_ocs_from=self._use_ocs_from,
             use_cimino_clouds=self._use_cimino_clouds,
             use_cimino_fitted_lookup=self._use_cimino_fitted_lookup,
         )
