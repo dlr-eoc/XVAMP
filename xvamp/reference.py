@@ -28,6 +28,143 @@ from .utils import (
 # classes get defined here and then initialized at the end
 
 
+class Profile:
+
+    index: NDArray[np.floating]
+    """ Index nodes of data """
+    data: NDArray[np.floating]
+    """ Data values at the indices """
+    index_unit: Unit
+    """ Unit of :attr:`~index` """
+    data_unit: Unit
+    """ Unit of :attr:`~data` """
+    log: bool
+    """ Whether :attr:`~data` is saved in logarithmic space """
+    lower_constant: bool
+    """ Sets downward continuation to constant rather than 0 """
+    upper_constant: bool
+    """ Sets downward continuation to constant rather than 0 """
+
+    def __init__(
+        self,
+        index: NDArray[np.floating] | Quantity,
+        data: NDArray[np.floating] | Quantity,
+        index_unit: Unit | str | None = None,
+        data_unit: Unit | str | None = None,
+        scale: float = 1.0,
+        log: bool = False,
+        lower_constant: bool = False,
+        upper_constant: bool = False,
+    ):
+        """
+        Class providing interfaces to loading and interpolating generic atmospheric
+        profiles.
+
+        Parameters
+        ----------
+        index
+            Index nodes (e.g., altitudes) at which ``data`` values are present.
+            If not a :class:`~astropy.units.Quantity`, ``index_unit`` must be set.
+        data
+            Data nodes (e.g., pressure or mixing ratio) at the ``index`` locations.
+            If not a :class:`~astropy.units.Quantity`, ``data_unit`` must be set.
+        index_unit
+            Unit of ``index``. Ignored if ``index`` is a
+            :class:`~astropy.units.Quantity`, required if it is not.
+        data_unit
+            Unit of ``index``. Ignored if ``index`` is a
+            :class:`~astropy.units.Quantity`, required if it is not.
+        scale
+            Scaling factor to apply to data (in linear space)
+        log
+            Set to ``True`` if the input nodes are in logarithmic space,
+            so that the output is transformed back to linear space
+        lower_constant
+            If ``True``, set the lower (left) values outside of the
+            interpolating range to the leftmost valid value (instead of
+            setting it to zero, which is the default).
+        upper_constant
+            If ``True``, set the lower (left) values outside of the
+            interpolating range to the leftmost valid value (instead of
+            setting it to zero, which is the default).
+        """
+        # save index
+        if isinstance(index, Quantity):
+            self.index = index.to_value()
+            self.index_unit = index.unit
+        else:
+            assert (
+                index_unit is not None
+            ), f"Must define 'index_unit' if 'index' is not a Quantity"
+            self.index = index
+            self.index_unit = Unit(index_unit)
+        # save data
+        if isinstance(data, Quantity):
+            self.data = data.to_value()
+            self.data_unit = data.unit
+        else:
+            assert (
+                data_unit is not None
+            ), f"Must define 'data_unit' if 'data' is not a Quantity"
+            self.data = data
+            self.data_unit = Unit(data_unit)
+        # enfore array type
+        self.index = np.atleast_1d(self.index)
+        assert self.index.ndim == 1, "'index' must be one-dimensional"
+        self.data = np.atleast_1d(self.data)
+        assert self.data.ndim == 1, "'data' must be one-dimensional"
+        # apply scaling to data
+        if log:
+            self.data += np.log10(scale)
+        else:
+            self.data *= scale
+        # save settings
+        self.log = log
+        self.lower_constant = lower_constant
+        self.upper_constant = upper_constant
+        # done
+
+    def interpolate(self, new_index: NDArray[np.floating] | Quantity) -> Quantity:
+        """
+        Linearly interpolates the profile data (either in linear or logarithmic space,
+        depending on how it is stored, see :attr:`~log`) onto a new index given the
+        down- and upward continuation settings in :attr:`~lower_constant` and
+        :attr:`~upper_constant`
+
+        Parameters
+        ----------
+        new_index
+            New index values (if not a :class:`~astropy.units.Quantity`, must already
+            be in the unit of this profile [:attr:`~index_unit`])
+
+        Returns
+        -------
+            New data values in [:attr:`~data_unit`]
+        """
+        # make sure we have the right index units
+        new_index = cast_to_np(new_index, self.index_unit)
+        # continue depending on whether we're interpolating in logarithmic space or not
+        if self.log:
+            out = 10 ** np.interp(
+                new_index,
+                self.index,
+                self.data,
+                left=None if self.lower_constant else np.nan,
+                right=None if self.upper_constant else np.nan,
+            )
+            out[np.isnan(out)] = 0
+        else:
+            out = np.interp(
+                new_index,
+                self.index,
+                self.data,
+                left=None if self.lower_constant else 0,
+                right=None if self.upper_constant else 0,
+            )
+        # cast as Quantity and return
+        return Quantity(out, self.data_unit)
+
+
 class Reference:
     """
     Abstract base class for reference atmospheric models.
