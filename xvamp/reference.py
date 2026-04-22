@@ -337,7 +337,7 @@ class Duan2010Figures(Reference):
         ]
     )
     """
-    Nodes in that define the electron density profile as pairs of
+    Nodes that define the electron density profile as pairs of
     altitude [km] and 1e11*log(electron density [1/m3])
     """
 
@@ -363,7 +363,13 @@ class Duan2010Figures(Reference):
         ]
     )
     """
-    Nodes in that define the H2O molar fraction profile as pairs of
+    Nodes that define the H2O molar fraction profile as pairs of
+    altitude [km] and fraction [ppm]
+    """
+
+    H2O_OLD_FRACTION_NODES = np.array([[5, 30], [60, 30]])
+    """
+    Nodes that define the old H2O molar fraction profile as pairs of
     altitude [km] and fraction [ppm]
     """
 
@@ -384,7 +390,24 @@ class Duan2010Figures(Reference):
         ]
     )
     """
-    Nodes in that define the SO2 molar fraction profile as pairs of
+    Nodes that define the SO2 molar fraction profile as pairs of
+    altitude [km] and fraction [ppm]
+    """
+
+    SO2_OLD_FRACTION_NODES = np.array(
+        [
+            [12, 22],
+            [22, 38],
+            [23, 38],
+            [34, 130],
+            [46, 130],
+            [52, 110],
+            [53, 110],
+            [69, 0.6],
+        ]
+    )
+    """
+    Nodes that define the old SO2 molar fraction profile as pairs of
     altitude [km] and fraction [ppm]
     """
 
@@ -402,8 +425,29 @@ class Duan2010Figures(Reference):
         ]
     )
     """
-    Nodes in that define the H2SO4 molar fraction profile as pairs of
+    Nodes that define the H2SO4 molar fraction profile as pairs of
     altitude [km] and fraction [ppm]
+    """
+
+    H2SO4_3212_FRACTION_NODES = np.array(
+        [
+            [30, 0],
+            [35 - 1e-6, 0],
+            [35, 0.5 + 1.5],
+            [39, 3.5 + 1.5],
+            [42, 2.6 + 1.5],
+            [45, 4.5 + 1.5],
+            [48, 4.6 + 1.5],
+            [50, 1 + 1.5],
+            [51, 0.5 + 1.5],
+            [55, 0.5 + 1.5],
+            [55 + 1e-6, 0],
+            [56, 0],
+        ]
+    )
+    """
+    Nodes that define the H2SO4 molar fraction profile from a modified Magellan
+    orbit 3212 as pairs of altitude [km] and fraction [ppm]
     """
 
     CO_FRACTION_NODES = np.array(
@@ -423,7 +467,13 @@ class Duan2010Figures(Reference):
         ]
     )
     """
-    Nodes in that define the CO molar fraction profile as pairs of
+    Nodes that define the CO molar fraction profile as pairs of
+    altitude [km] and fraction [ppm]
+    """
+
+    CO_OLD_FRACTION_NODES = np.array([[30, 23], [40, 29]])
+    """
+    Nodes that define the old CO molar fraction profile as pairs of
     altitude [km] and fraction [ppm]
     """
 
@@ -431,7 +481,13 @@ class Duan2010Figures(Reference):
         [[29, 0], [30, 14], [33, 14], [34, 0], [37, 0], [38, 0.35], [40, 0.35], [41, 0]]
     )
     """
-    Nodes in that define the OCS molar fraction profile as pairs of
+    Nodes that define the OCS molar fraction profile as pairs of
+    altitude [km] and fraction [ppm]
+    """
+
+    OCS_OLD_FRACTION_NODES = np.array([[30, 20], [38, 0.35]])
+    """
+    Nodes that define the old OCS molar fraction profile as pairs of
     altitude [km] and fraction [ppm]
     """
 
@@ -508,6 +564,30 @@ class Duan2010Figures(Reference):
         )
 
     @staticmethod
+    def get_h2o_old_density(altitudes: NDArray[np.floating] | Quantity) -> Quantity:
+        """
+        Computes the old H2O (water vapor) molar fraction as a
+        linear interpolation between defined nodes.
+
+        Parameters
+        ----------
+        altitudes
+            Altitude values
+            (if not a :class:`~astropy.units.Quantity`, must already be in [km])
+
+        Returns
+        -------
+            H2O (water vapor) molar fraction
+        """
+        # interpolate, pad, and add unit
+        return Quantity(
+            interpolate_nodes(
+                cast_to_np(altitudes, "km"), Duan2010Figures.H2O_OLD_FRACTION_NODES
+            ),
+            Duan2010Figures.UNIT_MF,
+        )
+
+    @staticmethod
     def get_so2_density(altitudes: NDArray[np.floating] | Quantity) -> Quantity:
         """
         Computes the SO2 molar fraction as a
@@ -533,6 +613,30 @@ class Duan2010Figures(Reference):
         return Quantity(so2_interpolated, Duan2010Figures.UNIT_MF)
 
     @staticmethod
+    def get_so2_old_density(altitudes: NDArray[np.floating] | Quantity) -> Quantity:
+        """
+        Computes the old SO2 molar fraction as a
+        linear interpolation between defined nodes.
+
+        Parameters
+        ----------
+        altitudes
+            Altitude values
+            (if not a :class:`~astropy.units.Quantity`, must already be in [km])
+
+        Returns
+        -------
+            SO2 molar fraction
+        """
+        # interpolate and pad according to settings
+        so2_interpolated = interpolate_nodes(
+            cast_to_np(altitudes, "km"),
+            Duan2010Figures.SO2_OLD_FRACTION_NODES,
+        )
+        # add unit and return
+        return Quantity(so2_interpolated, Duan2010Figures.UNIT_MF)
+
+    @staticmethod
     def get_h2so4_density(altitudes: NDArray[np.floating] | Quantity) -> Quantity:
         """
         Computes the H2SO4 molar fraction as a
@@ -552,6 +656,30 @@ class Duan2010Figures(Reference):
         return Quantity(
             interpolate_nodes(
                 cast_to_np(altitudes, "km"), Duan2010Figures.H2SO4_FRACTION_NODES
+            ),
+            Duan2010Figures.UNIT_MF,
+        )
+
+    @staticmethod
+    def get_h2so4_3212_density(altitudes: NDArray[np.floating] | Quantity) -> Quantity:
+        """
+        Computes the H2SO4 molar fraction for the Magellan orbit 3212 as a
+        linear interpolation between defined nodes.
+
+        Parameters
+        ----------
+        altitudes
+            Altitude values
+            (if not a :class:`~astropy.units.Quantity`, must already be in [km])
+
+        Returns
+        -------
+            H2SO4 molar fraction
+        """
+        # interpolate, pad, and add unit
+        return Quantity(
+            interpolate_nodes(
+                cast_to_np(altitudes, "km"), Duan2010Figures.H2SO4_3212_FRACTION_NODES
             ),
             Duan2010Figures.UNIT_MF,
         )
@@ -583,6 +711,30 @@ class Duan2010Figures(Reference):
         return Quantity(co_interpolated, Duan2010Figures.UNIT_MF)
 
     @staticmethod
+    def get_co_old_density(altitudes: NDArray[np.floating] | Quantity) -> Quantity:
+        """
+        Computes the old CO molar fraction as a
+        log-linear interpolation between defined nodes.
+
+        Parameters
+        ----------
+        altitudes
+            Altitude values
+            (if not a :class:`~astropy.units.Quantity`, must already be in [km])
+
+        Returns
+        -------
+            CO molar fraction
+        """
+        # interpolate and pad according to settings
+        co_interpolated = interpolate_nodes(
+            cast_to_np(altitudes, "km"),
+            Duan2010Figures.CO_OLD_FRACTION_NODES,
+        )
+        # add unit and return
+        return Quantity(co_interpolated, Duan2010Figures.UNIT_MF)
+
+    @staticmethod
     def get_ocs_density(altitudes: NDArray[np.floating] | Quantity) -> Quantity:
         """
         Computes the OCS molar fraction as a
@@ -602,6 +754,30 @@ class Duan2010Figures(Reference):
         return Quantity(
             interpolate_nodes(
                 cast_to_np(altitudes, "km"), Duan2010Figures.OCS_FRACTION_NODES
+            ),
+            Duan2010Figures.UNIT_MF,
+        )
+
+    @staticmethod
+    def get_ocs_old_density(altitudes: NDArray[np.floating] | Quantity) -> Quantity:
+        """
+        Computes the old OCS molar fraction as a
+        log-linear interpolation between defined nodes.
+
+        Parameters
+        ----------
+        altitudes
+            Altitude values
+            (if not a :class:`~astropy.units.Quantity`, must already be in [km])
+
+        Returns
+        -------
+            OCS molar fraction
+        """
+        # interpolate, pad, and add unit
+        return Quantity(
+            interpolate_nodes(
+                cast_to_np(altitudes, "km"), Duan2010Figures.OCS_OLD_FRACTION_NODES
             ),
             Duan2010Figures.UNIT_MF,
         )
@@ -1019,6 +1195,48 @@ class Magellan321X(Reference):
                 units=units_rtpd,
             ),
         }
+
+    def get_wavelength_orbit(
+        self, wavelength: str | None = None, orbit: int | None = None
+    ) -> Tuple[QTable, QTable]:
+        """
+        Return the dataset for a specific wavelength and/or orbit.
+
+        Parameters
+        ----------
+        wavelength
+            Either ``"S"`` or ``"X"`` band. ``None`` returns all wavelengths.
+        orbit
+            One of ``3212``, ``3213`` and ``3214``. ``None`` returns all orbits.
+
+        Returns
+        -------
+        mgn_abs
+            Subset of the ``mgn_abs.dat`` file
+        mgn_rtpd
+            Subset of the ``mgn_rtpd.dat`` file
+        """
+        # default to all
+        i_abs = np.ones(len(self.tables["mgn_abs"]), dtype=bool)
+        i_rtpd = np.ones(len(self.tables["mgn_rtpd"]), dtype=bool)
+        # restrict wavelength
+        if wavelength is not None:
+            i_abs = np.logical_and(
+                i_abs, self.tables["mgn_abs"]["WAVELENGTH"] == wavelength
+            )
+            i_rtpd = np.logical_and(
+                i_rtpd, self.tables["mgn_rtpd"]["WAVELENGTH"] == wavelength
+            )
+        # restrict orbit
+        if orbit is not None:
+            i_abs = np.logical_and(
+                i_abs, self.tables["mgn_abs"]["ORBIT_NUMBER"] == orbit
+            )
+            i_rtpd = np.logical_and(
+                i_rtpd, self.tables["mgn_rtpd"]["ORBIT_NUMBER"] == orbit
+            )
+        # subset data
+        return self.tables["mgn_abs"][i_abs], self.tables["mgn_rtpd"][i_rtpd]
 
 
 class Marcq2006(Reference):

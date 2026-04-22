@@ -549,7 +549,7 @@ class Model:
         )
 
     @staticmethod
-    def tpd_below_0km(venus_gas_constant: Quantity) -> Tuple[
+    def tpd_below_0km(venus_gas_constant: Quantity, add_3K: bool = False) -> Tuple[
         Quantity["length"],
         Quantity["temperature"],
         Quantity["pressure"],
@@ -564,6 +564,9 @@ class Model:
         ----------
         venus_gas_constant
             Assumed Venus standard atmospheric gas constant (= R/M) [J/kg K]
+        add_3K
+            This refers to the 3 K addition done in the :cite:t:`Duan2010` model
+            when combining the :cite:t:`seiff1985` and :cite:t:`zasova2006` profiles.
 
         Returns
         -------
@@ -594,7 +597,9 @@ class Model:
             cumulative_trapezoid(-lapse_rate_neg, x=alt_help_w0, initial=0),
             lapse_rate_neg.unit * alt_help_w0.unit,
         )
-        temp_help_w0 -= temp_help_w0[-1] - (seiff1985.tables["1-1"]["T"][0] + 3 * u.K)
+        temp_help_w0 -= temp_help_w0[-1] - seiff1985.tables["1-1"]["T"][0]
+        if add_3K:
+            temp_help_w0 -= 3 * u.K
         temp_neg = temp_help_w0[:-1:1000]
         # then, extend the imperfect gas compressibiltiy factor
         zeta_neg = Quantity(
@@ -796,16 +801,20 @@ class Duan2010(Model):
 
     def __init__(
         self,
+        use_tpd_from: str = "duan",
         use_compressible_gas: bool = True,
         use_keating_temp_press_above100km: bool = False,
         use_keating_co_co2_n2_above_100km: bool = False,
+        use_simple_h2o: bool = False,
+        use_simple_so2: bool = False,
+        use_simple_co: bool = False,
         use_h2so4_from: str = "duan",
-        use_marcq_ocs: bool = False,
+        use_ocs_from: str = "duan",
         add_ar: bool = False,
         cutoff_so2_frequency: Quantity["frequency"] | None = None,
-        use_ocs_from: str = "duan",
+        ocs_abspol_from: str = "duan",
         use_virial_approximation: bool = True,
-        use_cimino_clouds: bool = True,
+        use_clouds_from: str = "cimino",
         use_cimino_fitted_lookup: bool = False,
         load_polarization_parameters: bool | str | Path = True,
         min_altitude_spacing: Quantity = Quantity(1, "km"),
@@ -816,6 +825,13 @@ class Duan2010(Model):
 
         Parameters
         ----------
+        use_tpd_from
+            Which temperature, pressure, and density profile to use:
+
+            - ``"duan"``: A combination of :cite:t:`seiff1985` and :cite:t:`zasova2006`
+              as described in the paper, Section 3.1 (i.e., including the 3 K offset).
+            - ``"seiff:x"``: A specific profile of :cite:t:`seiff1985` for a given
+              latitude *x* (valid values: 30, 45, 60, 75, 85) in degrees.
         use_compressible_gas
             Whether to use the gas compressibility factor when deriving the mass
             density for the 0-100 km altitude range, or assume the ideal gas law.
@@ -839,13 +855,22 @@ class Duan2010(Model):
             atmosphere- and ionosphere-dominated permittivity profiles is at 100 km,
             and the ionosphere is modeled differently. It is only useful if one
             wants to load these quantities for later plotting.
+        use_simple_h2o
+            Define whether to use a simple water vapor profile or not.
+        use_simple_s2o
+            Define whether to use a simple sulfur dioxide profile or not.
+        use_simple_co
+            Define whether to use a simple carbon monoxide profile or not.
         use_h2so4_from
-            Define which H2SO4 profile to use though various string codes:
+            Define which H2SO4 profile to use:
 
-            - ``"duan"``: Profile from :cite:t:`duan2010`, Fig. 7b (default)
-            - ``"kolodner"``: Average of the three X-band-derived profiles from
-              :cite:t:`kolodner1998`, Figs. 7-9. This adds about a tenth of a dB
-              attenuation and removes about 4 mm of delay.
+            - ``"duan"``: Profile from :cite:t:`duan2010`, Fig. 7b (default).
+              Alternatively, specify ``"duan:3212"`` to use a modified profile from
+              Magellan orbit 3212.
+            - ``"kolodner:i"``: X-band-derived profile for orbit *i*  (valid values:
+              3212, 3213, 3214) from :cite:t:`kolodner1998`, Figs. 7-9. Alternatively,
+              omitting ``":i"`` uses the average of the three profiles. This option
+              adds about a tenth of a dB attenuation and removes about 4 mm of delay.
             - ``"jenkins:x"``: Profiles of :cite:t:`jenkins2002` for different assumed
               SO2 abundances *x* (valid values: 0, 50, 100, 150, 200). This changes the
               attenuation by about a tenth of a dB and the delay by some millimeters.
@@ -853,9 +878,13 @@ class Duan2010(Model):
               Magellan orbit *i* (valid values: 3212, 3213, 3214). This changes the
               attenuation by about a dB and the delay of some millimeters.
 
-        use_marcq_ocs
-            Whether to use the OCS profile from :cite:t:`marcq2006`
-            instead of the :cite:t:`duan2010` profile.
+        use_ocs_from
+            Define which OCS profile to use:
+
+            - ``"duan"``: Profile from :cite:t:`duan2010`
+            - ``"simple"``: Simpler profile from the reference code
+            - ``"marcq"``: Profile from :cite:t:`marcq2006`
+
             This has a range delay effect on the sub-millimeter scale, and an effect
             on the two-way attenuation on the millidecibel scale.
         add_ar
@@ -866,7 +895,7 @@ class Duan2010(Model):
             When computing the absorption coefficient of SO2, include all spectral
             lines up to this frequency. If ``None``, use all available ones.
             This option is only kept for development purposes.
-        use_ocs_from
+        ocs_abspol_from
             Define which model to use to compute the absorption and polarization
             profiles of OCS.
 
@@ -884,10 +913,13 @@ class Duan2010(Model):
             the total polarization of the polar species (from Harvey & Lemmon, 2005),
             or to use the polarization relationship by :cite:t:`pitzer1983`.
             These two approaches are numerically fully equivalent.
-        use_cimino_clouds
-            Whether to use the polarization and absorption equations for the clouds in
-            :cite:t:`cimino1982`, eq. (10) and (16), or sections 2.1.5 and 2.2.5
-            in :cite:t:`duan2010`.
+        use_clouds_from
+            Define which cloud polarization and absorption model to use:
+
+            - ``"cimino"``: :cite:t:`cimino1982`, eq. (10) and (16)
+            - ``"duan"``: :cite:t:`duan2010`, sections 2.1.5 and 2.2.5
+            - ``"none"``: Ignore all cloud effects
+
             See the notes on the importance of this parameter at
             :ref:`implementation:Cloud polarization and absorption`.
         use_cimino_fitted_lookup
@@ -915,6 +947,7 @@ class Duan2010(Model):
 
         # temperature and pressure
         altitude, temperature, pressure, mass_density = Duan2010.get_tpd(
+            use_tpd_from=use_tpd_from,
             use_compressible_gas=use_compressible_gas,
             use_keating_temp_press_above100km=use_keating_temp_press_above100km,
         )
@@ -931,8 +964,11 @@ class Duan2010(Model):
         # get the mixing ratios of the chemical species
         mixratios, comp_interpolators, comp_unit = Duan2010.get_composition(
             use_keating_co_co2_n2_above_100km=use_keating_co_co2_n2_above_100km,
+            use_simple_h2o=use_simple_h2o,
+            use_simple_so2=use_simple_so2,
+            use_simple_co=use_simple_co,
             use_h2so4_from=use_h2so4_from,
-            use_marcq_ocs=use_marcq_ocs,
+            use_ocs_from=use_ocs_from,
             add_ar=add_ar,
         )
         # keep track of the chemical species we added
@@ -1058,7 +1094,7 @@ class Duan2010(Model):
         if load_polarization_parameters == False:
             self.polarization_parameters = Duan2010.get_polarization_parameters(
                 add_ar=add_ar,
-                use_ocs_from=use_ocs_from,
+                ocs_abspol_from=ocs_abspol_from,
                 use_virial_approximation=use_virial_approximation,
             )
         # or load them (either the defaults or from a file)
@@ -1072,8 +1108,8 @@ class Duan2010(Model):
         # everything else depends on the current state
         self.update_pol_absorp_atmosphere(
             cutoff_so2_frequency=cutoff_so2_frequency,
-            use_ocs_from=use_ocs_from,
-            use_cimino_clouds=use_cimino_clouds,
+            ocs_abspol_from=ocs_abspol_from,
+            use_clouds_from=use_clouds_from,
             use_cimino_fitted_lookup=use_cimino_fitted_lookup,
         )
         # sets self.polarization[s], self.absorption[s], and self.eps_prime_r_atmo
@@ -1155,8 +1191,8 @@ class Duan2010(Model):
     def update_pol_absorp_atmosphere(
         self,
         cutoff_so2_frequency: Quantity["frequency"] | None = None,
-        use_ocs_from: str = "duan",
-        use_cimino_clouds: bool = True,
+        ocs_abspol_from: str = "duan",
+        use_clouds_from: str = "cimino",
         use_cimino_fitted_lookup: bool = False,
     ):
         """
@@ -1171,7 +1207,7 @@ class Duan2010(Model):
             When computing the absorption coefficient of SO2, include all spectral
             lines up to this frequency. If ``None``, use all available ones.
             This option is only kept for development purposes.
-        use_ocs_from
+        ocs_abspol_from
             Define which model to use to compute the absorption and polarization
             profiles of OCS.
 
@@ -1181,10 +1217,15 @@ class Duan2010(Model):
             - ``"bbld"``: Using a Ben-Reuven line shape with parameters derived
               approximately from :cite:t:`bouanich1988` and :cite:t:`lavrentieva2020`.
 
-        use_cimino_clouds
-            Whether to use the polarization and absorption equations for the clouds in
-            :cite:t:`cimino1982`, eq. (10) and (16), or sections 2.1.5 and 2.2.5
-            in :cite:t:`duan2010`.
+        use_clouds_from
+            Define which cloud polarization and absorption model to use:
+
+            - ``"cimino"``: :cite:t:`cimino1982`, eq. (10) and (16)
+            - ``"duan"``: :cite:t:`duan2010`, sections 2.1.5 and 2.2.5
+            - ``"none"``: Ignore all cloud effects
+
+            See the notes on the importance of this parameter at
+            :ref:`implementation:Cloud polarization and absorption`.
         use_cimino_fitted_lookup
             Whether to estimate the complex permittivity of gaseous H2SO4 from
             lookup tables and then pre-fitted analytical extrapolation functions,
@@ -1213,14 +1254,14 @@ class Duan2010(Model):
         # sections 2.2.1-2.2.4: absorptions from species
         self.absorptions = self.evaluate_absorptions(
             cutoff_so2_frequency=cutoff_so2_frequency,
-            use_ocs_from=use_ocs_from,
+            ocs_abspol_from=ocs_abspol_from,
         )
 
         # sections 2.1.5 and 2.2.5: clouds
         # add quantities to existing QTable
         self.polarizations["cloud"], self.absorptions["cloud"] = (
             self.evaluate_cloud_permittivity(
-                use_cimino_clouds=use_cimino_clouds,
+                use_clouds_from=use_clouds_from,
                 use_cimino_fitted_lookup=use_cimino_fitted_lookup,
             )
         )
@@ -1291,6 +1332,7 @@ class Duan2010(Model):
 
     @staticmethod
     def get_tpd(
+        use_tpd_from: str = "duan",
         use_compressible_gas: bool = True,
         use_keating_temp_press_above100km: bool = False,
     ) -> Tuple[
@@ -1300,11 +1342,17 @@ class Duan2010(Model):
         Quantity["mass density"] | None,
     ]:
         """
-        Follow Section  3.1 to build the temperature, pressure, and mass density
-        profiles.
+        Build the temperature, pressure, and mass density profiles.
 
         Parameters
         ----------
+        use_tpd_from
+            Which temperature, pressure, and density profile to use:
+
+            - ``"duan"``: A combination of :cite:t:`seiff1985` and :cite:t:`zasova2006`
+              as described in the paper, Section 3.1 (i.e., including the 3 K offset).
+            - ``"seiff:x"``: A specific profile of :cite:t:`seiff1985` for a given
+              latitude *x* (valid values: 30, 45, 60, 75, 85) in degrees.
         use_compressible_gas
             Whether to use the gas compressibility factor when deriving the mass
             density for the 0-100 km altitude range, or assume the ideal gas law.
@@ -1326,54 +1374,98 @@ class Duan2010(Model):
             Mass density profile (only if ``use_compressible_gas=True``)
         """
 
-        # p. 13: "for the lower atmosphere, [...] the temperature curve at
-        # latitude of 75° in the work of Seiff et al. (1985) is used after being
-        # increased by 3 K"
-        ix_seiff_below_zasova = (
-            seiff1985.tables["1-2d"]["z"] < zasova2006.tables["5"]["H"][-1]
-        )
-        alt = [
-            seiff1985.tables["1-1"]["z"],
-            seiff1985.tables["1-2d"]["z"][ix_seiff_below_zasova],
-        ]
-        temp = [
-            seiff1985.tables["1-1"]["T"] + 3 * u.K,
-            seiff1985.tables["1-2d"]["T"][ix_seiff_below_zasova] + 3 * u.K,
-        ]
-        press = [
-            seiff1985.tables["1-1"]["p"],
-            seiff1985.tables["1-2d"]["p"][ix_seiff_below_zasova],
-        ]
+        # start with the basic profile from Seiff et al. (1985) for the deep atmosphere
+        alt = [seiff1985.tables["1-1"]["z"]]
+        temp = [seiff1985.tables["1-1"]["T"]]
+        press = [seiff1985.tables["1-1"]["p"]]
         if use_compressible_gas:
-            dens = [
-                seiff1985.tables["1-1"]["ρ"],
-                seiff1985.tables["1-2d"]["ρ"][ix_seiff_below_zasova],
-            ]
+            dens = [seiff1985.tables["1-1"]["ρ"]]
 
-        # p. 14: "In the simulation, the middle atmosphere temperature and
-        # pressure profiles are using the column of Ls = 200°–270° in
-        # Table 5 of Zasova et al. (2006)"
-        alt.append(zasova2006.tables["5"]["H"][::-1])
-        temp.append(zasova2006.tables["5"]["Ls = 200°-270°, T"][::-1])
-        press.append(zasova2006.tables["5"]["Ls = 200°-270°, P"][::-1])
-        # interpolate the pressure levels of Zasova et al. (2006) onto compressible
-        # density profile from Seiff et al. (1985)
-        if use_compressible_gas:
-            dens.append(
-                Quantity(
-                    np.interp(
-                        press[-1].to("bar").value,
-                        seiff1985.tables["1-2d"]["p"].to("bar").value[::-1],
-                        seiff1985.tables["1-2d"]["ρ"].value[::-1],
-                    ),
-                    seiff1985.tables["1-2d"]["ρ"].unit,
+        # now, determine which continuation to make
+        match use_tpd_from.split(":"):
+
+            # the default model, combining Seiff et al. (1985) and Zasova et al. (2006)
+            case ["duan"]:
+
+                # p. 13: "for the lower atmosphere, [...] the temperature curve at
+                # latitude of 75° in the work of Seiff et al. (1985) is used after being
+                # increased by 3 K"
+                seiff_lat_table = "1-2d"
+                # p. 14: "In the simulation, the middle atmosphere temperature and
+                # pressure profiles are using the column of Ls = 200°–270° in
+                # Table 5 of Zasova et al. (2006)"
+                ix_seiff_below_zasova = (
+                    seiff1985.tables[seiff_lat_table]["z"]
+                    < zasova2006.tables["5"]["H"][-1]
                 )
-            )
-        # extrapolate to negative altitudes
-        alt_neg, temp_neg, press_neg, dens_neg = Model.tpd_below_0km(
-            Duan2010.VENUS_GAS_CONSTANT
-        )
-        # insert into list
+                alt.extend(
+                    [
+                        seiff1985.tables[seiff_lat_table]["z"][ix_seiff_below_zasova],
+                        zasova2006.tables["5"]["H"][::-1],
+                    ]
+                )
+                temp = [
+                    temp[0] + 3 * u.K,
+                    seiff1985.tables[seiff_lat_table]["T"][ix_seiff_below_zasova]
+                    + 3 * u.K,
+                    zasova2006.tables["5"]["Ls = 200°-270°, T"][::-1],
+                ]
+                press.extend(
+                    [
+                        seiff1985.tables[seiff_lat_table]["p"][ix_seiff_below_zasova],
+                        zasova2006.tables["5"]["Ls = 200°-270°, P"][::-1],
+                    ]
+                )
+                # interpolate the pressure levels of Zasova et al. (2006) onto compressible
+                # density profile from Seiff et al. (1985)
+                if use_compressible_gas:
+                    dens.extend(
+                        [
+                            seiff1985.tables[seiff_lat_table]["ρ"][
+                                ix_seiff_below_zasova
+                            ],
+                            Quantity(
+                                np.interp(
+                                    press[-1].to("bar").value,
+                                    seiff1985.tables[seiff_lat_table]["p"]
+                                    .to("bar")
+                                    .value[::-1],
+                                    seiff1985.tables[seiff_lat_table]["ρ"].value[::-1],
+                                ),
+                                seiff1985.tables[seiff_lat_table]["ρ"].unit,
+                            ),
+                        ]
+                    )
+
+                # extrapolate to negative altitudes
+                alt_neg, temp_neg, press_neg, dens_neg = Model.tpd_below_0km(
+                    Duan2010.VENUS_GAS_CONSTANT,
+                    add_3K=True,
+                )
+
+            # use a specific Seiff et al. (1985) profile directly
+            case ["seiff", x] if int(x) in [30, 45, 60, 75, 85]:
+
+                # simply add the corresponding table to the lists
+                seiff_lat_table = seiff1985.LAT_TABLES[
+                    seiff1985.LAT.value.tolist().index(int(x))
+                ]
+                alt.append(seiff1985.tables[seiff_lat_table]["z"])
+                temp.append(seiff1985.tables[seiff_lat_table]["T"])
+                press.append(seiff1985.tables[seiff_lat_table]["p"])
+                if use_compressible_gas:
+                    dens.append(seiff1985.tables[seiff_lat_table]["ρ"])
+
+                # extrapolate to negative altitudes
+                alt_neg, temp_neg, press_neg, dens_neg = Model.tpd_below_0km(
+                    Duan2010.VENUS_GAS_CONSTANT,
+                    add_3K=False,
+                )
+
+            case _:
+                raise ValueError(f"Unknown TPD model {use_tpd_from=}")
+
+        # insert negative profiles into lists
         alt.insert(0, alt_neg)
         temp.insert(0, temp_neg)
         press.insert(0, press_neg)
@@ -1447,8 +1539,11 @@ class Duan2010(Model):
     @staticmethod
     def get_composition(
         use_keating_co_co2_n2_above_100km: bool = False,
+        use_simple_h2o: bool = False,
+        use_simple_so2: bool = False,
+        use_simple_co: bool = False,
         use_h2so4_from: str = "duan",
-        use_marcq_ocs: bool = False,
+        use_ocs_from: str = "duan",
         add_ar: bool = False,
     ) -> Tuple[dict[str, pd.DataFrame], dict[str, Callable], Unit]:
         """
@@ -1461,13 +1556,22 @@ class Duan2010(Model):
             CO, CO2, and N2 as continuation above the :cite:t:`duan2010`
             profiles (instead of continuing CO2 and N2 upwards as a constant,
             and setting CO to zero upwards of the highest value).
+        use_simple_h2o
+            Define whether to use a simple water vapor profile or not.
+        use_simple_so2
+            Define whether to use a simple sulfur dioxide profile or not.
+        use_simple_co
+            Define whether to use a simple carbon monoxide profile or not.
         use_h2so4_from
-            Define which H2SO4 profile to use though various string codes:
+            Define which H2SO4 profile to use:
 
-            - ``"duan"``: Profile from :cite:t:`duan2010`, Fig. 7b (default)
-            - ``"kolodner"``: Average of the three X-band-derived profiles from
-              :cite:t:`kolodner1998`, Figs. 7-9. This adds about a tenth of a dB
-              attenuation and removes about 4 mm of delay.
+            - ``"duan"``: Profile from :cite:t:`duan2010`, Fig. 7b (default).
+              Alternatively, specify ``"duan:3212"`` to use a modified profile from
+              Magellan orbit 3212.
+            - ``"kolodner:i"``: X-band-derived profile for orbit *i*  (valid values:
+              3212, 3213, 3214) from :cite:t:`kolodner1998`, Figs. 7-9. Alternatively,
+              omitting ``":i"`` uses the average of the three profiles. This option
+              adds about a tenth of a dB attenuation and removes about 4 mm of delay.
             - ``"jenkins:x"``: Profiles of :cite:t:`jenkins2002` for different assumed
               SO2 abundances *x* (valid values: 0, 50, 100, 150, 200). This changes the
               attenuation by about a tenth of a dB and the delay by some millimeters.
@@ -1475,9 +1579,16 @@ class Duan2010(Model):
               Magellan orbit *i* (valid values: 3212, 3213, 3214). This changes the
               attenuation by about a dB and the delay of some millimeters.
 
-        use_marcq_ocs
-            Whether to use the OCS profile from :cite:t:`marcq2006`
-            instead of the :cite:t:`duan2010` profile.
+        use_ocs_from
+            Define which OCS profile to use:
+
+            - ``"duan"``: Profile from :cite:t:`duan2010`
+            - ``"simple"``: Simpler profile from the reference code
+            - ``"marcq"``: Profile from :cite:t:`marcq2006`
+
+            This has a range delay effect on the sub-millimeter scale, and an effect
+            on the two-way attenuation on the millidecibel scale.
+
         add_ar
             Whether to add a constant value for Argon into the mixture.
 
@@ -1541,32 +1652,56 @@ class Duan2010(Model):
             )
 
         # H2O
-        # no options to check here
-        mixratios["H2O"] = pd.DataFrame(
-            index=duan2010figures.H2O_FRACTION_NODES[:, 0],
-            data={
-                "H2O": duan2010figures.get_h2o_density(
-                    duan2010figures.H2O_FRACTION_NODES[:, 0]
-                )
-                .to(comp_unit)
-                .value
-            },
-        )
-        interpolators["H2O"] = duan2010figures.get_h2o_density
+        if use_simple_h2o:
+            mixratios["H2O"] = pd.DataFrame(
+                index=duan2010figures.H2O_OLD_FRACTION_NODES[:, 0],
+                data={
+                    "H2O": duan2010figures.get_h2o_old_density(
+                        duan2010figures.H2O_OLD_FRACTION_NODES[:, 0]
+                    )
+                    .to(comp_unit)
+                    .value
+                },
+            )
+            interpolators["H2O"] = duan2010figures.get_h2o_old_density
+        else:
+            mixratios["H2O"] = pd.DataFrame(
+                index=duan2010figures.H2O_FRACTION_NODES[:, 0],
+                data={
+                    "H2O": duan2010figures.get_h2o_density(
+                        duan2010figures.H2O_FRACTION_NODES[:, 0]
+                    )
+                    .to(comp_unit)
+                    .value
+                },
+            )
+            interpolators["H2O"] = duan2010figures.get_h2o_density
 
         # SO2
-        # no options to check here
-        mixratios["SO2"] = pd.DataFrame(
-            index=duan2010figures.SO2_FRACTION_NODES[:, 0],
-            data={
-                "SO2": duan2010figures.get_so2_density(
-                    duan2010figures.SO2_FRACTION_NODES[:, 0]
-                )
-                .to(comp_unit)
-                .value
-            },
-        )
-        interpolators["SO2"] = duan2010figures.get_so2_density
+        if use_simple_so2:
+            mixratios["SO2"] = pd.DataFrame(
+                index=duan2010figures.SO2_OLD_FRACTION_NODES[:, 0],
+                data={
+                    "SO2": duan2010figures.get_so2_old_density(
+                        duan2010figures.SO2_OLD_FRACTION_NODES[:, 0]
+                    )
+                    .to(comp_unit)
+                    .value
+                },
+            )
+            interpolators["SO2"] = duan2010figures.get_so2_old_density
+        else:
+            mixratios["SO2"] = pd.DataFrame(
+                index=duan2010figures.SO2_FRACTION_NODES[:, 0],
+                data={
+                    "SO2": duan2010figures.get_so2_density(
+                        duan2010figures.SO2_FRACTION_NODES[:, 0]
+                    )
+                    .to(comp_unit)
+                    .value
+                },
+            )
+            interpolators["SO2"] = duan2010figures.get_so2_density
 
         # H2SO4
         match use_h2so4_from.split(":"):
@@ -1583,6 +1718,19 @@ class Duan2010(Model):
                     },
                 )
                 interpolators["H2SO4"] = duan2010figures.get_h2so4_density
+            case ["duan", "3212"]:
+                # use the modified Magellan orbit 3212 profile
+                mixratios["H2SO4"] = pd.DataFrame(
+                    index=duan2010figures.H2SO4_3212_FRACTION_NODES[:, 0],
+                    data={
+                        "H2SO4": duan2010figures.get_h2so4_3212_density(
+                            duan2010figures.H2SO4_3212_FRACTION_NODES[:, 0]
+                        )
+                        .to(comp_unit)
+                        .value
+                    },
+                )
+                interpolators["H2SO4"] = duan2010figures.get_h2so4_3212_density
             case ["kolodner"]:
                 # use the average profiles from Kolodner & Steffes
                 h2so4_alt = (
@@ -1594,6 +1742,20 @@ class Duan2010(Model):
                     kolodnersteffes1998.tables["H2SO4 X-band"]["mixing ratio of H2SO4"]
                     .to(comp_unit)
                     .value
+                )
+                # save
+                mixratios["H2SO4"] = pd.DataFrame(
+                    index=h2so4_alt, data={"H2SO4": h2so4_mr}
+                )
+            case ["kolodner", i] if int(i) in [3212, 3213, 3214]:
+                # use the individual profiles from Kolodner & Steffes
+                h2so4_alt = (
+                    kolodnersteffes1998.tables["fig789"]["altitude"].to("km").value
+                )
+                h2so4_mr = np.clip(
+                    kolodnersteffes1998.tables["fig789"][i].to(comp_unit).value,
+                    a_min=0,
+                    a_max=None,
                 )
                 # save
                 mixratios["H2SO4"] = pd.DataFrame(
@@ -1641,41 +1803,58 @@ class Duan2010(Model):
                 raise ValueError(f"Unknown H2SO4 source {use_h2so4_from=}")
 
         # CO
-        co_alt = duan2010figures.CO_FRACTION_NODES[:, 0]
+        if use_simple_co:
+            co_alt = duan2010figures.CO_OLD_FRACTION_NODES[:, 0]
+            co_intp = duan2010figures.get_co_old_density
+        else:
+            co_alt = duan2010figures.CO_FRACTION_NODES[:, 0]
+            co_intp = duan2010figures.get_co_density
         if use_keating_co_co2_n2_above_100km:
             co_alt = co_alt[co_alt < 100]
             co_alt = pd.DataFrame(
                 index=co_alt,
-                data={"CO": duan2010figures.get_co_density(co_alt).to(comp_unit).value},
+                data={"CO": co_intp(co_alt).to(comp_unit).value},
             )
-            temp = pd.concat([co_alt, highcomps_df["CO"]], axis=0)
-            mixratios["CO"] = temp
+            mixratios["CO"] = pd.concat([co_alt, highcomps_df["CO"]], axis=0)
         else:
             mixratios["CO"] = pd.DataFrame(
                 index=co_alt,
-                data={"CO": duan2010figures.get_co_density(co_alt).to(comp_unit).value},
+                data={"CO": co_intp(co_alt).to(comp_unit).value},
             )
-            interpolators["CO"] = duan2010figures.get_co_density
+            interpolators["CO"] = co_intp
 
         # OCS
-        if use_marcq_ocs:
-            mixratios["OCS"] = marcq2006.tables["fig8"].to_pandas(index="altitude")
-            mixratios["OCS"].rename(
-                columns={mixratios["OCS"].columns[0]: "OCS"}, inplace=True
-            )
-            mixratios["OCS"] *= 1e6
-        else:
-            mixratios["OCS"] = pd.DataFrame(
-                index=duan2010figures.OCS_FRACTION_NODES[:, 0],
-                data={
-                    "OCS": duan2010figures.get_ocs_density(
-                        duan2010figures.OCS_FRACTION_NODES[:, 0]
-                    )
-                    .to(comp_unit)
-                    .value
-                },
-            )
-            interpolators["OCS"] = duan2010figures.get_ocs_density
+        match use_ocs_from:
+            case "marcq":
+                mixratios["OCS"] = marcq2006.tables["fig8"].to_pandas(index="altitude")
+                mixratios["OCS"].rename(
+                    columns={mixratios["OCS"].columns[0]: "OCS"}, inplace=True
+                )
+                mixratios["OCS"] *= 1e6
+            case "duan":
+                mixratios["OCS"] = pd.DataFrame(
+                    index=duan2010figures.OCS_FRACTION_NODES[:, 0],
+                    data={
+                        "OCS": duan2010figures.get_ocs_density(
+                            duan2010figures.OCS_FRACTION_NODES[:, 0]
+                        )
+                        .to(comp_unit)
+                        .value
+                    },
+                )
+                interpolators["OCS"] = duan2010figures.get_ocs_density
+            case "simple":
+                mixratios["OCS"] = pd.DataFrame(
+                    index=duan2010figures.OCS_OLD_FRACTION_NODES[:, 0],
+                    data={
+                        "OCS": duan2010figures.get_ocs_old_density(
+                            duan2010figures.OCS_OLD_FRACTION_NODES[:, 0]
+                        )
+                        .to(comp_unit)
+                        .value
+                    },
+                )
+                interpolators["OCS"] = duan2010figures.get_ocs_old_density
 
         # done
         return mixratios, interpolators, comp_unit
@@ -1768,6 +1947,7 @@ class Duan2010(Model):
             james1997.tables["clouds"]["mass mixing ratio clouds"]
             * total_cloud_mass_density
         ).decompose()
+        cloud_mass_density = Quantity(np.zeros(len(cloud_altitude)), "kg/m3")
         # set to NaN where it's zero to avoid some division-by-zero later
         cloud_mass_density[cloud_mass_density == 0] = np.nan
         # next, we translate the concentration profile from James et al. (1997)
@@ -1782,6 +1962,7 @@ class Duan2010(Model):
             ),
             "%",
         )
+        cloud_concentration = Quantity(np.zeros(len(cloud_altitude)), "%")
 
         # set table names for easier joining
         cloud_altitude.info.name = "altitude"
@@ -1794,7 +1975,7 @@ class Duan2010(Model):
     @staticmethod
     def get_polarization_parameters(
         add_ar: bool = False,
-        use_ocs_from: str = "duan",
+        ocs_abspol_from: str = "duan",
         use_virial_approximation: bool = True,
     ) -> dict[str, HarveyLemmon2005Parameters | Pitzer1983Parameters]:
         """
@@ -1805,7 +1986,7 @@ class Duan2010(Model):
         ----------
         add_ar
             Whether to add a constant value for Argon into the mixture.
-        use_ocs_from
+        ocs_abspol_from
             Define which model to use to compute the absorption and polarization
             profiles of OCS.
 
@@ -1948,7 +2129,7 @@ class Duan2010(Model):
         # section 2.1.4.5: OCS
         # get real part of the permittivity from integrating through
         # the spectral lines
-        match use_ocs_from:
+        match ocs_abspol_from:
             case "kolbe":
                 eps_prime_r_ocs = Duan2010.eps_prime_r_from_spectral_lines(
                     Duan2010.T_OCS,
@@ -1975,7 +2156,7 @@ class Duan2010(Model):
                     VISAR_FREQUENCY,
                 )
             case _:
-                raise ValueError(f"Unknown OCS model {use_ocs_from=}")
+                raise ValueError(f"Unknown OCS model {ocs_abspol_from=}")
         # convert to polarization
         Pnu_OCS = Duan2010.eq2(eps_prime_r_ocs)
         if use_virial_approximation:
@@ -2037,7 +2218,7 @@ class Duan2010(Model):
         return polarizations
 
     def evaluate_cloud_permittivity(
-        self, use_cimino_clouds: bool = True, use_cimino_fitted_lookup: bool = False
+        self, use_clouds_from: str = "cimino", use_cimino_fitted_lookup: bool = False
     ) -> Tuple[Quantity["dimensionless"], Quantity["wavenumber"]]:
         """
         Evaluate the cloud polarization and absorption given the model's
@@ -2046,10 +2227,15 @@ class Duan2010(Model):
 
         Parameters
         ----------
-        use_cimino_clouds
-            Whether to use the polarization and absorption equations for the clouds in
-            :cite:t:`cimino1982`, eq. (10) and (16), or sections 2.1.5 and 2.2.5
-            in :cite:t:`duan2010`.
+        use_clouds_from
+            Define which cloud polarization and absorption model to use:
+
+            - ``"cimino"``: :cite:t:`cimino1982`, eq. (10) and (16)
+            - ``"duan"``: :cite:t:`duan2010`, sections 2.1.5 and 2.2.5
+            - ``"none"``: Ignore all cloud effects
+
+            See the notes on the importance of this parameter at
+            :ref:`implementation:Cloud polarization and absorption`.
         use_cimino_fitted_lookup
             Whether to estimate the complex permittivity of gaseous H2SO4 from
             lookup tables and then pre-fitted analytical extrapolation functions,
@@ -2084,7 +2270,7 @@ class Duan2010(Model):
                 )
             )
         # convert the relative permittivity to polarization
-        if use_cimino_clouds:
+        if use_clouds_from:
             # use the equations in the Cimino paper
             # calculate mass of shell and core
             d_shell = self.cloud_mass_density / (1 + cimino1982.RATIO_MASS_DROPLETS)
@@ -2123,7 +2309,7 @@ class Duan2010(Model):
             # polarization already accounts for its density in the atmosphere
             cloud_pol = P_distr_H2SO4_H2O
         # convert the relative permittivity to absorption
-        if use_cimino_clouds:
+        if use_clouds_from:
             if use_cimino_fitted_lookup:
                 # approximation used by Duan et al. paper
                 cloud_Pnu_imag = np.abs(cloud_Pnu.imag.value)
@@ -2150,7 +2336,7 @@ class Duan2010(Model):
     def evaluate_absorptions(
         self,
         cutoff_so2_frequency: Quantity["frequency"] | None = None,
-        use_ocs_from: str = "duan",
+        ocs_abspol_from: str = "duan",
     ) -> astrotable.QTable:
         """
         Evaluate the absorption models given the model's atmospheric quantities.
@@ -2161,7 +2347,7 @@ class Duan2010(Model):
             When computing the absorption coefficient of SO2, include all spectral
             lines up to this frequency. If ``None``, use all available ones.
             This option is only kept for development purposes.
-        use_ocs_from
+        ocs_abspol_from
             Define which model to use to compute the absorption and polarization
             profiles of OCS.
 
@@ -2220,7 +2406,7 @@ class Duan2010(Model):
         )
 
         # section 2.2.4: OCS
-        match use_ocs_from:
+        match ocs_abspol_from:
             case "kolbe":
                 absorptions["OCS"] = Duan2010.absorption_lorentz(
                     self.temperature,
@@ -2248,7 +2434,7 @@ class Duan2010(Model):
                     Duan2010.BR_OCS_CO2,
                 ).squeeze()
             case _:
-                raise ValueError(f"Unknown OCS model {use_ocs_from=}")
+                raise ValueError(f"Unknown OCS model {ocs_abspol_from=}")
 
         # done
         return absorptions
@@ -3068,16 +3254,20 @@ class VariableProfiles(Duan2010):
 
     def __init__(
         self,
+        use_tpd_from: str = "duan",
         use_compressible_gas: bool = True,
         use_keating_temp_press_above100km: bool = False,
         use_keating_co_co2_n2_above_100km: bool = False,
+        use_simple_h2o: bool = False,
+        use_simple_so2: bool = False,
+        use_simple_co: bool = False,
         use_h2so4_from: str = "duan",
-        use_marcq_ocs: bool = False,
+        use_ocs_from: str = "duan",
         add_ar: bool = False,
         cutoff_so2_frequency: Quantity["frequency"] | None = None,
-        use_ocs_from: str = "duan",
+        ocs_abspol_from: str = "duan",
         use_virial_approximation: bool = True,
-        use_cimino_clouds: bool = True,
+        use_clouds_from: str = "cimino",
         use_cimino_fitted_lookup: bool = False,
         min_altitude_spacing: Quantity = Quantity(1, "km"),
         add_3K: bool = False,
@@ -3091,21 +3281,25 @@ class VariableProfiles(Duan2010):
         # save init variables for later use
         self._add3K = add_3K
         self._cutoff_so2_frequency = cutoff_so2_frequency
-        self._use_ocs_from = use_ocs_from
-        self._use_cimino_clouds = use_cimino_clouds
+        self._ocs_abspol_from = ocs_abspol_from
+        self._use_cimino_clouds = use_clouds_from
         self._use_cimino_fitted_lookup = use_cimino_fitted_lookup
         # call parent initializer
         super().__init__(
+            use_tpd_from,
             use_compressible_gas,
             use_keating_temp_press_above100km,
             use_keating_co_co2_n2_above_100km,
+            use_simple_h2o,
+            use_simple_so2,
+            use_simple_co,
             use_h2so4_from,
-            use_marcq_ocs,
+            use_ocs_from,
             add_ar,
             cutoff_so2_frequency,
-            use_ocs_from,
+            ocs_abspol_from,
             use_virial_approximation,
-            use_cimino_clouds,
+            use_clouds_from,
             use_cimino_fitted_lookup,
             min_altitude_spacing,
         )
@@ -3225,7 +3419,7 @@ class VariableProfiles(Duan2010):
         unit_dens = self.mass_density.unit
         # get extrapolated below 0 km
         alt_neg, temp_neg, press_neg, dens_neg = Model.tpd_below_0km(
-            Duan2010.VENUS_GAS_CONSTANT
+            Duan2010.VENUS_GAS_CONSTANT, self._add3K
         )
         # combine
         new_alt = np.concatenate(
@@ -3272,8 +3466,8 @@ class VariableProfiles(Duan2010):
         self.update_densities()
         self.update_pol_absorp_atmosphere(
             cutoff_so2_frequency=self._cutoff_so2_frequency,
-            use_ocs_from=self._use_ocs_from,
-            use_cimino_clouds=self._use_cimino_clouds,
+            ocs_abspol_from=self._ocs_abspol_from,
+            use_clouds_from=self._use_cimino_clouds,
             use_cimino_fitted_lookup=self._use_cimino_fitted_lookup,
         )
         self.update_from_ionosphere()
