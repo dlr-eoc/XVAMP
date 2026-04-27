@@ -162,6 +162,9 @@ cython_debug/
 /*.npz
 /*.npy
 /*.mat
+/*.pdf
+/*.png
+/*.jpg
 
 # documentation
 docs/
