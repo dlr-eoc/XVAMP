@@ -605,7 +605,7 @@ class Model:
         venus_gas_constant
             Assumed Venus standard atmospheric gas constant (= R/M) [J/kg K]
         add_3K
-            This refers to the 3 K addition done in the :cite:t:`Duan2010` model
+            This refers to the 3 K addition done in the :cite:t:`duan2010` model
             when combining the :cite:t:`seiff1985` and :cite:t:`zasova2006` profiles.
 
         Returns
@@ -2019,7 +2019,6 @@ class Duan2010(Model):
             james1997.tables["clouds"]["mass mixing ratio clouds"]
             * total_cloud_mass_density
         ).decompose()
-        cloud_mass_density = Quantity(np.zeros(len(cloud_altitude)), "kg/m3")
         # set to NaN where it's zero to avoid some division-by-zero later
         cloud_mass_density[cloud_mass_density == 0] = np.nan
         # next, we translate the concentration profile from James et al. (1997)
@@ -2034,7 +2033,6 @@ class Duan2010(Model):
             ),
             "%",
         )
-        cloud_concentration = Quantity(np.zeros(len(cloud_altitude)), "%")
 
         # set table names for easier joining
         cloud_altitude.info.name = "altitude"
