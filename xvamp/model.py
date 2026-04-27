@@ -21,7 +21,7 @@ from .constants import *
 from .utils import (
     float_or_array,
     fill_df,
-    geometric_range_from_central_angle,
+    geometry_from_central_angle,
     read_polarization_parameters,
     HarveyLemmon2005Parameters,
     Pitzer1983Parameters,
@@ -343,51 +343,72 @@ class Model:
         """
         return self.get_interpolated_attribute("temperature", u.K, altitude, np.nan, 0)
 
-    def get_range_attenuation_angle(
+    def get_range_attenuation_angles(
         self,
-        height_terrain: Quantity | float_or_array,
-        height_platform: Quantity | float_or_array,
-        look_angle: Quantity | float,
-    ) -> Tuple[Quantity, Quantity, Quantity]:
+        look_angle: Quantity["angle"] | float_or_array,
+        height_terrain: Quantity["length"] | float_or_array,
+        height_platform: Quantity["length"] | float,
+    ) -> Tuple[
+        Quantity["length"], Quantity["dB"], Quantity["angle"], Quantity["angle"]
+    ]:
         """
         Calculate the apparent range, two-way attenuation through the atmosphere,
-        and the central angle.
+        the central angle, and the apparent incidence angle for a range of look angles,
+        terrain heights, and platform heights.
 
         Parameters
         ----------
+        look_angle
+            Look angle(s) of the instrument in [rad], if not a
+            :class:`~astropy.units.Quantity`
         height_terrain
-            Height of the terrain relative to the mean planet radius in [km],
+            Height(s) of the terrain relative to the mean planet radius in [km],
             if not a :class:`~astropy.units.Quantity`
         height_platform
-            Height of the platform relative to the mean planet radius in [km],
+            Height(s) of the platform relative to the mean planet radius in [km],
             if not a :class:`~astropy.units.Quantity`
-        look_angle
-            Look angle of the instrument in [rad], if not a
-            :class:`~astropy.units.Quantity`
 
         Returns
         -------
         apparent_range
             Apparent range from the platform to the surface [km]
         attenuation
-            Two-way signal attenuation [dB]
+            Two-way signal attenuation [dB] (note that the *power absorption* is twice
+            this value)
         central_angle
             Central angle [rad]
+        apparent_incidence_angle
+            Apparent incidence angle [rad]
         """
         # input format
+        if isinstance(look_angle, Quantity):
+            look_angle = look_angle.to("rad").value
         if isinstance(height_terrain, Quantity):
             height_terrain = height_terrain.to("km").value
         if isinstance(height_platform, Quantity):
             height_platform = height_platform.to("km").value
-        if isinstance(look_angle, Quantity):
-            look_angle = look_angle.to("rad").value
-        height_terrain = np.atleast_1d(height_terrain)
-        height_platform = np.atleast_1d(height_platform)
         look_angle = np.atleast_1d(look_angle)
-        assert look_angle.size == 1
+        assert look_angle.ndim == 1
+        height_terrain = np.atleast_1d(height_terrain)
+        assert height_terrain.ndim == 1
+        height_platform = np.atleast_1d(height_platform)
+        assert height_platform.ndim == 1
         venus_radius = VENUS_RADIUS.to("km").value
         height_model = self.altitude.to("km").value
-        # get sizes to loop over
+        # get output size
+        nout = np.max([look_angle.size, height_terrain.size, height_platform.size])
+        assert look_angle.size in [
+            1,
+            nout,
+        ], f"{look_angle.size=}, expected 1 or {nout}."
+        assert height_terrain.size in [
+            1,
+            nout,
+        ], f"{height_terrain.size=}, expected 1 or {nout}."
+        assert height_platform.size in [
+            1,
+            nout,
+        ], f"{height_platform.size=}, expected 1 or {nout}."
         nh_model = height_model.size
         nh_terrain = height_terrain.size
         nh_platform = height_platform.size
@@ -403,13 +424,13 @@ class Model:
         # range over which to integrate
         index_pairs = np.array(
             [
-                [
-                    altitude_indices[
-                        [iterrain + nh_model, iplatform + nh_model + nh_terrain]
-                    ]
-                    for iterrain in range(nh_terrain)
+                altitude_indices[
+                    [int(iterrain) + nh_model, int(iplatform) + nh_model + nh_terrain]
                 ]
-                for iplatform in range(nh_platform)
+                for iterrain, iplatform in zip(
+                    np.arange(nout) if nh_terrain > 1 else np.zeros(nout),
+                    np.arange(nout) if nh_platform > 1 else np.zeros(nout),
+                )
             ]
         )
         # make a mask that can be used to set the output to NaN
@@ -417,28 +438,18 @@ class Model:
         invalid = ~np.logical_and(np.isfinite(refractions), np.isfinite(absorptions))
         mask = np.array(
             [
-                [
-                    np.any(
-                        invalid[
-                            index_pairs[iplatform, iterrain, 0] : index_pairs[
-                                iplatform, iterrain, 1
-                            ]
-                            + 1
-                        ]
-                    )
-                    for iterrain in range(nh_terrain)
-                ]
-                for iplatform in range(nh_platform)
+                np.any(invalid[index_pairs[i, 0] : index_pairs[i, 1] + 1])
+                for i in range(nout)
             ]
         )
-        # compute index of refraction at platform altitude
+        # compute index of refraction at platform altitudes
         refraction_0 = refractions[altitude_indices[-nh_platform:]]
         # compute cosine of look angle for all platform and evaluation altitudes
         sine_look_angle = (
             (venus_radius + height_platform[:, None])
             / (venus_radius + altitudes[None, :])
             * (refraction_0[:, None] / refractions[None, :])
-            * np.sin(look_angle)
+            * np.sin(look_angle[:, None])
         )
         cosine_look_angle = np.sqrt(1 - sine_look_angle**2)
         tangent_look_angle = sine_look_angle / cosine_look_angle
@@ -450,6 +461,8 @@ class Model:
         d_beta_dz = tangent_look_angle / Quantity(
             venus_radius + altitudes[None, :], "km"
         )
+        # the integrand for the apparent incidence angle
+        d_theta_dz = tangent_look_angle
         # cumulatively integrate to get solutions for all starting altitudes
         cumu_rho_a = cumulative_trapezoid(
             np.nan_to_num(d_rho_a_dz), x=altitudes, axis=1, initial=0
@@ -460,36 +473,62 @@ class Model:
         cumu_beta = cumulative_trapezoid(
             np.nan_to_num(d_beta_dz), x=altitudes, axis=1, initial=0
         )
+        cumu_theta = cumulative_trapezoid(
+            np.nan_to_num(d_theta_dz), x=altitudes, axis=1, initial=0
+        )
         # extract the values at the start at end point of the cumulative integration
-        rho_a_from = np.take_along_axis(cumu_rho_a, index_pairs[:, :, 0], axis=1)
-        rho_a_to = np.take_along_axis(cumu_rho_a, index_pairs[:, :, 1], axis=1)
-        alpha_L_from = np.take_along_axis(cumu_alpha_L, index_pairs[:, :, 0], axis=1)
-        alpha_L_to = np.take_along_axis(cumu_alpha_L, index_pairs[:, :, 1], axis=1)
-        beta_from = np.take_along_axis(cumu_beta, index_pairs[:, :, 0], axis=1)
-        beta_to = np.take_along_axis(cumu_beta, index_pairs[:, :, 1], axis=1)
+        rho_a_from = np.take_along_axis(
+            cumu_rho_a, index_pairs[:, 0][:, None], axis=1
+        ).ravel()
+        rho_a_to = np.take_along_axis(
+            cumu_rho_a, index_pairs[:, 1][:, None], axis=1
+        ).ravel()
+        alpha_L_from = np.take_along_axis(
+            cumu_alpha_L, index_pairs[:, 0][:, None], axis=1
+        ).ravel()
+        alpha_L_to = np.take_along_axis(
+            cumu_alpha_L, index_pairs[:, 1][:, None], axis=1
+        ).ravel()
+        beta_from = np.take_along_axis(
+            cumu_beta, index_pairs[:, 0][:, None], axis=1
+        ).ravel()
+        beta_to = np.take_along_axis(
+            cumu_beta, index_pairs[:, 1][:, None], axis=1
+        ).ravel()
+        theta_from = np.take_along_axis(
+            cumu_theta, index_pairs[:, 0][:, None], axis=1
+        ).ravel()
+        theta_to = np.take_along_axis(
+            cumu_theta, index_pairs[:, 1][:, None], axis=1
+        ).ravel()
         # set values to NaN if their interval contains any invalid inputs
         # (one side is enough)
         rho_a_from[mask] = np.nan
         alpha_L_from[mask] = np.nan
         beta_from[mask] = np.nan
+        theta_from[mask] = np.nan
         # difference the two to get final integration value
         apparent_range = Quantity(rho_a_to - rho_a_from, "km")
         attenuation = Quantity(alpha_L_to - alpha_L_from, "dB")
         central_angle = Quantity(beta_to - beta_from, "rad")
+        apparent_incidence_angle = Quantity(
+            np.arctan((theta_to - theta_from) / (height_platform - height_terrain)),
+            "rad",
+        )
         # done
-        return apparent_range, attenuation, central_angle
+        return apparent_range, attenuation, central_angle, apparent_incidence_angle
 
     def get_delay_attenuation(
         self,
         height_terrain: Quantity | float_or_array,
         height_platform: Quantity | float_or_array,
-        look_angle: Quantity | float,
+        look_angle: Quantity | float_or_array,
     ) -> Tuple[Quantity, Quantity]:
         """
         Calculate the range delay (defined as the difference between the apparent and
         geometric range) and two-way attenuation through the atmosphere.
-        Convenience wrapper around :meth:`~Model.get_range_attenuation_angle`
-        and :func:`~xvamp.utils.geometric_range_from_central_angle`.
+        Convenience wrapper around :meth:`~Model.get_range_attenuation_angles`
+        and :func:`~xvamp.utils.geometry_from_central_angle`.
 
         Parameters
         ----------
@@ -511,13 +550,13 @@ class Model:
             Two-way signal attenuation [dB]
         """
         # get profile-integrated values
-        apparent_range, attenuation, central_angle = self.get_range_attenuation_angle(
-            height_terrain, height_platform, look_angle
-        )
+        apparent_range, attenuation, central_angle = self.get_range_attenuation_angles(
+            look_angle, height_terrain, height_platform
+        )[:3]
         # use law of cosines to get geometric range
-        geometric_range = geometric_range_from_central_angle(
-            height_terrain, height_platform, central_angle
-        )
+        geometric_range = geometry_from_central_angle(
+            central_angle, height_terrain, height_platform
+        )[0]
         # get delay
         delay = (apparent_range - geometric_range).to("m")
         # done

@@ -9,6 +9,7 @@ from importlib.resources import files as res_files
 import astropy.units as u
 import numpy as np
 import tomlkit as tok
+from typing import Tuple
 from dataclasses import dataclass, field
 from pathlib import Path
 from numpy.typing import NDArray
@@ -601,51 +602,83 @@ def get_sza(lst: float_or_array, lat: float_or_array) -> float_or_array:
     return np.arccos(np.cos((lst - 12) / 24 * 2 * np.pi) * np.cos(lat))
 
 
-def geometric_range_from_central_angle(
-    height_terrain: Quantity | float_or_array,
-    height_platform: Quantity | float_or_array,
-    central_angle: Quantity | float_or_array,
-) -> Quantity:
+def geometry_from_central_angle(
+    central_angle: Quantity["angle"] | float_or_array,
+    height_terrain: Quantity["length"] | float_or_array,
+    height_platform: Quantity["length"] | float_or_array,
+) -> Tuple[Quantity["length"], Quantity["angle"], Quantity["angle"]]:
     """
-    Calculate the geometric range from the law of cosines.
+    Calculate the geometric (in vacuum) range, look angle, and incidence angle
+    from the central angle and the law of cosines.
 
     Parameters
     ----------
+    central_angle
+        Central angle(s) of the platform in [rad], if not a
+        :class:`~astropy.units.Quantity`.
     height_terrain
-        Height of the terrain relative to the mean planet radius in [km],
+        Height(s) of the terrain relative to the mean planet radius in [km],
         if not a :class:`~astropy.units.Quantity`.
     height_platform
-        Height of the platform relative to the mean planet radius in [km],
+        Height(s) of the platform relative to the mean planet radius in [km],
         if not a :class:`~astropy.units.Quantity`.
-    central_angle
-        Central angle of the platform in [rad], if not a
-        :class:`~astropy.units.Quantity`. Must be of broadcastable shape
-        to ``height_platform`` and ``height_terrain``.
 
     Returns
     -------
+    geometric_range
         Geometric range from the platform to the surface [km].
+    geometric_look_angle
+        Geometric look angle from the platform to the surface [rad].
+    geometric_incidence_angle
+        Geometric incidence angle from the surface to the platform [rad].
     """
     # input check
-    assert height_terrain.ndim < 2
-    assert height_platform.ndim < 2
+    central_angle = np.atleast_1d(central_angle)
+    assert central_angle.ndim == 1
     height_terrain = np.atleast_1d(height_terrain)
+    assert height_terrain.ndim == 1
     height_platform = np.atleast_1d(height_platform)
+    assert height_platform.ndim == 1
+    nout = np.max([central_angle.size, height_terrain.size, height_platform.size])
+    assert central_angle.size in [
+        1,
+        nout,
+    ], f"{central_angle.size=}, expected 1 or {nout}."
+    assert height_terrain.size in [
+        1,
+        nout,
+    ], f"{height_terrain.size=}, expected 1 or {nout}."
+    assert height_platform.size in [
+        1,
+        nout,
+    ], f"{height_platform.size=}, expected 1 or {nout}."
     # parse input to common units
+    if not isinstance(central_angle, Quantity):
+        central_angle = Quantity(central_angle, "rad")
     try:
-        radius_platform = VENUS_RADIUS + height_platform[:, None]
+        rp = VENUS_RADIUS + height_platform
     except UnitConversionError:
-        radius_platform = VENUS_RADIUS + Quantity(height_platform[:, None], "km")
+        rp = VENUS_RADIUS + Quantity(height_platform, "km")
     try:
-        radius_terrain = VENUS_RADIUS + height_terrain[None, :]
+        rt = VENUS_RADIUS + height_terrain
     except UnitConversionError:
-        radius_terrain = VENUS_RADIUS + Quantity(height_terrain[None, :], "km")
-    # return law of cosines
-    return np.sqrt(
-        radius_platform**2
-        + radius_terrain**2
-        - 2 * radius_platform * radius_terrain * np.cos(central_angle)
+        rt = VENUS_RADIUS + Quantity(height_terrain, "km")
+    # avoid duplicate operations
+    rp_sq = rp**2
+    rt_sq = rt**2
+    # get geometric range
+    geometric_range = np.sqrt(rp_sq + rt_sq - 2 * rp * rt * np.cos(central_angle))
+    r_sq = geometric_range**2
+    # get geometric look angle
+    geometric_look_angle = np.arccos(
+        (rp_sq + r_sq - rt_sq) / (2 * rp * geometric_range)
     )
+    # get geometric incidence angle
+    geometric_incidence_angle = Quantity(np.pi, "rad") - np.arccos(
+        (rt_sq + r_sq - rp_sq) / (2 * rt * geometric_range)
+    )
+    # done
+    return geometric_range, geometric_look_angle, geometric_incidence_angle
 
 
 def get_brightness_temperature(

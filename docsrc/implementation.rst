@@ -90,8 +90,8 @@ of altitude, we can compute the quantities actually needed for the SAR processin
    }
 
 This functionality is provided as part of the
-:meth:`~xvamp.model.Model.get_range_attenuation_angle` and
-:func:`~xvamp.utils.geometric_range_from_central_angle` functions.
+:meth:`~xvamp.model.Model.get_range_attenuation_angles` and
+:func:`~xvamp.utils.geometry_from_central_angle` functions.
 
 For more information about the usage of the code, please see
 :doc:`the Quick Start Notebook </scripts/quickstart>` and the
