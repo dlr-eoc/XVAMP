@@ -230,9 +230,9 @@ relative permittivity from the imaginary part (which, in turn, is derived from
 the absorption). In this step, the value of the real part of the relative
 permittivity at infinite frequency needs to be known or assumed. Both the paper
 and the reference code contain such values for both SO2 and OCS; however, their
-source is not known anymore. This is why XVAMP, for general consistency and
-traceability, chooses 1 as their value, which is the theoretical value at infinite
-frequencies for all media.
+source is not known anymore. For backwards compatibility, XVAMP also uses these values
+but offers the option to choose unity instead, which is the theoretical value at
+infinite frequencies for all media.
 
 .. note::
 
@@ -248,8 +248,8 @@ There are some discrepancies in the way OCS is added into the atmospheric model.
 The paper uses a Lorentzian line shape to compute its absorption and attenuation,
 while the reference code uses a Ben-Reuven line expression for the absorption
 (using line shape parameters of SO2 for lack of better data) but does not compute
-the attenuation. XVAMP, for consistency, uses a Ben-Reuven line expression for
-both absorption and attenuation, and uses shape parameters derived for OCS
+the attenuation. XVAMP, for backwards compatibility, defaults to the reference code.
+However, XVAMP also offers to use a Ben-Reuven line shape parameters derived for OCS
 (albeit very approximately).
 
 .. note::

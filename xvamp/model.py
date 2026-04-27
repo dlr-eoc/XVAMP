@@ -730,6 +730,8 @@ class Duan2010(Model):
     """ Mixture parameters for N2 in cgs units """
 
     # constants relating to carbonyl sulfide (OCS or COS)
+    EPS_PRIME_R_INF_OCS = Quantity(1.005862637533891, u.dimensionless_unscaled)
+    """ Estimated dielectric constant of OCS at infinite frequency """
     P_OCS = Quantity(101325, "Pa")
     """ Pressure at which the dielectric constant for OCS was calculated """
     T_OCS = Quantity(273.18, "K")
@@ -766,6 +768,8 @@ class Duan2010(Model):
     """ Lorentzian line parameters for OCS from :cite:t:`kolbe1977` """
 
     # constants relating to sulfur dioxide (SO2)
+    EPS_PRIME_R_INF_SO2 = Quantity(1.005862637533891, u.dimensionless_unscaled)
+    """ Estimated dielectric constant of SO2 at infinite frequency """
     P_SO2 = Quantity(101325, "Pa")
     """ Pressure at which the dielectric constant for SO2 was calculated """
     T_SO2 = Quantity(273.15, "K")
@@ -852,6 +856,7 @@ class Duan2010(Model):
         add_ar: bool = False,
         cutoff_so2_frequency: Quantity["frequency"] | None = None,
         ocs_abspol_from: str = "duan",
+        use_eps_prime_r_inf: bool = True,
         use_virial_approximation: bool = True,
         use_clouds_from: str = "cimino",
         use_cimino_fitted_lookup: bool = False,
@@ -946,7 +951,18 @@ class Duan2010(Model):
 
             Since OCS is such a minor constituent, the different options have a
             sub-millimeter effect on the delay and a milli-decibel effect on the
-            attenuation.
+            attenuation. If changing the default, then also set
+            ``load_polarization_parameters=False``, as the setting affects the
+            polarization parameters.
+        use_eps_prime_r_inf
+            If ``True``, when computing the real part of the relative permittivity
+            of SO2 and OCS, a value of the real relative permittivity at infinite
+            frequency is set to an assumed value (rather than using the theoretical
+            value of unity). This only has an effect if
+            ``load_polarization_parameters=False``, because the polarization parameters
+            resulting from the real part of the relative permittivity are stored.
+            This option has a centimeter-level effect on the delay and changes the
+            attenuation by micro-decibels.
         use_virial_approximation
             Whether to use the leading terms of the virial approximation to calculate
             the total polarization of the polar species (from Harvey & Lemmon, 2005),
@@ -1134,6 +1150,7 @@ class Duan2010(Model):
             self.polarization_parameters = Duan2010.get_polarization_parameters(
                 add_ar=add_ar,
                 ocs_abspol_from=ocs_abspol_from,
+                use_eps_prime_r_inf=use_eps_prime_r_inf,
                 use_virial_approximation=use_virial_approximation,
             )
         # or load them (either the defaults or from a file)
@@ -2015,6 +2032,7 @@ class Duan2010(Model):
     def get_polarization_parameters(
         add_ar: bool = False,
         ocs_abspol_from: str = "duan",
+        use_eps_prime_r_inf: bool = True,
         use_virial_approximation: bool = True,
     ) -> dict[str, HarveyLemmon2005Parameters | Pitzer1983Parameters]:
         """
@@ -2035,6 +2053,11 @@ class Duan2010(Model):
             - ``"bbld"``: Using a Ben-Reuven line shape with parameters derived
               approximately from :cite:t:`bouanich1988` and :cite:t:`lavrentieva2020`.
 
+        use_eps_prime_r_inf
+            If ``True``, when computing the real part of the relative permittivity
+            of SO2 and OCS, a value of the real relative permittivity at infinite
+            frequency is set to an assumed value (rather than using the theoretical
+            value of unity).
         use_virial_approximation
             Whether to use the leading terms of the virial approximation to calculate
             the total polarization of the polar species (from Harvey & Lemmon, 2005),
@@ -2074,6 +2097,9 @@ class Duan2010(Model):
             jplspectrallines.tables["SO2"],
             Duan2010.BR_SO2_CO2,
             VISAR_FREQUENCY,
+            eps_prime_r_inf=(
+                Duan2010.EPS_PRIME_R_INF_SO2 if use_eps_prime_r_inf else 1.0
+            ),
         )
         # convert to polarization
         Pnu_SO2 = Duan2010.eq2(eps_prime_r_so2)
@@ -2177,6 +2203,9 @@ class Duan2010(Model):
                     Duan2010.L_OCS,
                     VISAR_FREQUENCY,
                     use_ben_reuven=False,
+                    eps_prime_r_inf=(
+                        Duan2010.EPS_PRIME_R_INF_OCS if use_eps_prime_r_inf else 1.0
+                    ),
                 )
             case "duan":
                 eps_prime_r_ocs = Duan2010.eps_prime_r_from_spectral_lines(
@@ -2185,6 +2214,9 @@ class Duan2010(Model):
                     jplspectrallines.tables["OCS"],
                     Duan2010.BR_SO2_AS_OCS_CO2,
                     VISAR_FREQUENCY,
+                    eps_prime_r_inf=(
+                        Duan2010.EPS_PRIME_R_INF_OCS if use_eps_prime_r_inf else 1.0
+                    ),
                 )
             case "bbld":
                 eps_prime_r_ocs = Duan2010.eps_prime_r_from_spectral_lines(
@@ -2193,6 +2225,9 @@ class Duan2010(Model):
                     jplspectrallines.tables["OCS"],
                     Duan2010.BR_OCS_CO2,
                     VISAR_FREQUENCY,
+                    eps_prime_r_inf=(
+                        Duan2010.EPS_PRIME_R_INF_OCS if use_eps_prime_r_inf else 1.0
+                    ),
                 )
             case _:
                 raise ValueError(f"Unknown OCS model {ocs_abspol_from=}")
@@ -3158,6 +3193,7 @@ class Duan2010(Model):
         freqmin: Quantity["frequency"] | None = None,
         freqmax: Quantity["frequency"] | None = None,
         use_ben_reuven: bool = True,
+        eps_prime_r_inf: float = 1.0,
     ):
         """
         Computes the real part of the relative permittivity by integrating
@@ -3192,6 +3228,9 @@ class Duan2010(Model):
         use_ben_reuven
             If ``True``, use the Ben-Reuven line expression, else use a Lorentzian
             line shape for the computation of the absorption.
+        eps_prime_r_inf
+            Real part of the relative permittivity at infinite frequency,
+            theoretically ``1``.
 
         Returns
         -------
@@ -3265,11 +3304,12 @@ class Duan2010(Model):
             alpha / freqrange.to("1/cm", equivalencies=u.spectral()) / (2 * np.pi)
         ).decompose()
         # use Kramers-Krönig equation to compute the real part of the relative
-        # permittivity from the imaginary part, assuming eps_prime_r(infinity) = 1
+        # permittivity from the imaginary part
         freqsqdiff = freqrange**2 - nu**2
         integrand = (freqrange * eps_dprime / freqsqdiff).to("1/GHz").value
         eps_prime_r = (
-            1 + 2 * np.trapezoid(integrand, x=freqrange.to("GHz").value) / np.pi
+            eps_prime_r_inf
+            + 2 * np.trapezoid(integrand, x=freqrange.to("GHz").value) / np.pi
         )
         # done
         return Quantity(eps_prime_r, u.dimensionless_unscaled)
@@ -3305,6 +3345,7 @@ class VariableProfiles(Duan2010):
         add_ar: bool = False,
         cutoff_so2_frequency: Quantity["frequency"] | None = None,
         ocs_abspol_from: str = "duan",
+        use_eps_prime_r_inf: bool = True,
         use_virial_approximation: bool = True,
         use_clouds_from: str = "cimino",
         use_cimino_fitted_lookup: bool = False,
@@ -3337,6 +3378,7 @@ class VariableProfiles(Duan2010):
             add_ar,
             cutoff_so2_frequency,
             ocs_abspol_from,
+            use_eps_prime_r_inf,
             use_virial_approximation,
             use_clouds_from,
             use_cimino_fitted_lookup,
