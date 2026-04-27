@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import astropy.units as u
 import astropy.table as astrotable
+from warnings import warn
 from pathlib import Path
 from typing import Tuple
 from collections.abc import Callable
@@ -1144,6 +1145,21 @@ class Duan2010(Model):
 
         # the computation of the polarization parameters is independent of
         # the loaded atmospheric profiles
+
+        # warn if we should recompute the polarization parameters
+        if (load_polarization_parameters == True) and (
+            (ocs_abspol_from != "duan") or (not use_eps_prime_r_inf)
+        ):
+            post_warn = (
+                "while loading the default polarization parameters "
+                f"({load_polarization_parameters=}) will yield inconsistent results. "
+                "Either recompute the polarization parameters, "
+                "or load them from an appropriate custom file."
+            )
+            if ocs_abspol_from != "duan":
+                warn(f"Choosing the non-default {ocs_abspol_from=} {post_warn}")
+            if not use_eps_prime_r_inf:
+                warn(f"Choosing the non-default {use_eps_prime_r_inf=} {post_warn}")
 
         # check if we should recompute them
         if load_polarization_parameters == False:
