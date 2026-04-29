@@ -90,29 +90,36 @@ class Profile:
         """
         # save index
         if isinstance(index, Quantity):
-            self.index = index.to_value()
+            self.index = index.value
             self.index_unit = index.unit
         else:
-            assert (
-                index_unit is not None
-            ), f"Must define 'index_unit' if 'index' is not a Quantity"
+            if index_unit is None:
+                raise ValueError(
+                    "Must define 'index_unit' if 'index' is not a Quantity"
+                )
             self.index = index
             self.index_unit = Unit(index_unit)
         # save data
         if isinstance(data, Quantity):
-            self.data = data.to_value()
+            self.data = data.value
             self.data_unit = data.unit
         else:
-            assert (
-                data_unit is not None
-            ), f"Must define 'data_unit' if 'data' is not a Quantity"
+            if data_unit is None:
+                raise ValueError("Must define 'data_unit' if 'data' is not a Quantity")
             self.data = data
             self.data_unit = Unit(data_unit)
         # enfore array type
         self.index = np.atleast_1d(self.index)
-        assert self.index.ndim == 1, "'index' must be one-dimensional"
+        if not self.index.ndim == 1:
+            raise ValueError("'index' must be one-dimensional")
         self.data = np.atleast_1d(self.data)
-        assert self.data.ndim == 1, "'data' must be one-dimensional"
+        if not self.data.ndim == 1:
+            raise ValueError("'data' must be one-dimensional")
+        # check their sizes
+        if not self.index.size == self.data.size:
+            raise ValueError(
+                f"Mismatching array sizes (index: {self.index.size}, data: {self.data.size})"
+            )
         # apply scaling to data
         if log:
             self.data += np.log10(scale)
@@ -124,7 +131,20 @@ class Profile:
         self.upper_constant = upper_constant
         # done
 
-    def interpolate(self, new_index: NDArray[np.floating] | Quantity) -> Quantity:
+    def __len__(self) -> int:
+        return self.index.size
+
+    def __str__(self) -> str:
+        return (
+            f"Profile of length {len(self)} with\n"
+            f"- index_unit={self.index_unit}\n"
+            f"- data_unit={self.data_unit}\n"
+            f"- log={self.log}\n"
+            f"- lower_constant={self.lower_constant}\n"
+            f"- upper_constant={self.upper_constant}"
+        )
+
+    def __call__(self, new_index: NDArray[np.floating] | Quantity) -> Quantity:
         """
         Linearly interpolates the profile data (either in linear or logarithmic space,
         depending on how it is stored, see :attr:`~log`) onto a new index given the

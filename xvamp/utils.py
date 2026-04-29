@@ -352,7 +352,7 @@ def cast_to_np(input: Any | Quantity, unit: str) -> Any | NDArray[np.floating]:
     or simply return the input if it's not a :class:`~astropy.units.Quantity`.
     """
     try:
-        return input.to(unit).value
+        return input.to_value(unit)
     except AttributeError:
         return input
 
