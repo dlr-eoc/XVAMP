@@ -489,10 +489,10 @@ class Profile:
             self.data = data
             self.data_unit = Unit(data_unit)
         # enfore array type
-        self.index = np.atleast_1d(self.index)
+        self.index = np.atleast_1d(self.index).astype(float)
         if not self.index.ndim == 1:
             raise ValueError("'index' must be one-dimensional")
-        self.data = np.atleast_1d(self.data)
+        self.data = np.atleast_1d(self.data).astype(float)
         if not self.data.ndim == 1:
             raise ValueError("'data' must be one-dimensional")
         # check their sizes
