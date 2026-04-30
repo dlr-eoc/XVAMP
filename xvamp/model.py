@@ -2407,7 +2407,7 @@ class Duan2010(Model):
                 # of the concentrated droplets
                 d_concentr_H2SO4 = Quantity(
                     np.interp(
-                        self.cloud_concentration,
+                        self.cloud_concentration.to_value("%"),
                         duan2010figures.tables["4"]["Weight Percentage"].to("%").value,
                         duan2010figures.tables["4"]["Density"].value,
                         left=np.nan,

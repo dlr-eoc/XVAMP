@@ -207,7 +207,7 @@ assuming shell-like droplets described by :cite:t:`cimino1982`. The two approche
 differ by one and two orders of magnitude in the polarization and absorption profiles
 they yield, respectively, with the paper version being the higher one.
 For typical satellite heights, the difference amounts to a sub-millimeter change
-in the delay terms, but an approximately 2.7 dB two-way attenuation increase for
+in the delay terms, but an approximately 1.5 dB two-way attenuation increase for
 the paper version.
 
 The reason the code uses the :cite:t:`cimino1982` model instead is because it
