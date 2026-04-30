@@ -17,7 +17,9 @@ Radio Science 45, no. 2 (2010).
 
 ## Annotations
 
-1. Fig. 6: Implemented as a function and not digitized values.
-2. Fig. 7: I only digitized the blue or red lines.
-3. Table 4 is actually taken from: Lide, D. R. (Ed.) (2000),
+1. Table 4 is actually taken from: Lide, D. R. (Ed.) (2000),
    Handbook of Chemistry and Physics, 81st ed., CRC Press, Boca Raton, Fla.
+2. Figs. 6-7 also implemented as a function
+3. Fig. 8 not used because it can be inferred from the
+   original source James et al. (1997)
+4. Only for verification
