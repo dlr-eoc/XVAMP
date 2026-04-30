@@ -53,8 +53,8 @@ class Profile:
         data_unit: Unit | str | None = None,
         scale: float = 1.0,
         log: bool = False,
-        lower_constant: bool = False,
-        upper_constant: bool = False,
+        lower: float | None = 0.0,
+        upper: float | None = 0.0,
     ):
         """
         Class providing interfaces to loading and interpolating generic atmospheric
@@ -79,14 +79,14 @@ class Profile:
         log
             Set to ``True`` if the input nodes are in logarithmic space,
             so that the output is transformed back to linear space
-        lower_constant
-            If ``True``, set the lower (left) values outside of the
-            interpolating range to the leftmost valid value (instead of
-            setting it to zero, which is the default).
-        upper_constant
-            If ``True``, set the lower (left) values outside of the
-            interpolating range to the leftmost valid value (instead of
-            setting it to zero, which is the default).
+        lower
+            Set the lower (left) values outside of the interpolating range to this
+            value (default ``0``). Set to ``None`` to use the leftmost valid value (see
+            :func:`numpy.interp` ``left`` parameter with different default).
+        upper
+            Set the upper (right) values outside of the interpolating range to this
+            value (default ``0``). Set to ``None`` to use the rightmost valid value (see
+            :func:`numpy.interp` ``right`` parameter with different default).
         """
         # save index
         if isinstance(index, Quantity):
@@ -120,6 +120,9 @@ class Profile:
             raise ValueError(
                 f"Mismatching array sizes (index: {self.index.size}, data: {self.data.size})"
             )
+        # check monotonicity of index
+        if not np.all(np.diff(self.index) > 0):
+            raise ValueError("Index not strictly monotonically increasing")
         # apply scaling to data
         if log:
             self.data += np.log10(scale)
@@ -127,8 +130,8 @@ class Profile:
             self.data *= scale
         # save settings
         self.log = log
-        self.lower_constant = lower_constant
-        self.upper_constant = upper_constant
+        self.lower = lower
+        self.upper = upper
         # done
 
     def __len__(self) -> int:
@@ -140,16 +143,15 @@ class Profile:
             f"- index_unit={self.index_unit}\n"
             f"- data_unit={self.data_unit}\n"
             f"- log={self.log}\n"
-            f"- lower_constant={self.lower_constant}\n"
-            f"- upper_constant={self.upper_constant}"
+            f"- lower={self.lower}\n"
+            f"- upper={self.upper}"
         )
 
     def __call__(self, new_index: NDArray[np.floating] | Quantity) -> Quantity:
         """
         Linearly interpolates the profile data (either in linear or logarithmic space,
         depending on how it is stored, see :attr:`~log`) onto a new index given the
-        down- and upward continuation settings in :attr:`~lower_constant` and
-        :attr:`~upper_constant`
+        down- and upward continuation settings in :attr:`~lower` and :attr:`~upper`.
 
         Parameters
         ----------
@@ -165,21 +167,30 @@ class Profile:
         new_index = cast_to_np(new_index, self.index_unit)
         # continue depending on whether we're interpolating in logarithmic space or not
         if self.log:
+            if (self.lower is not None) or (self.upper is not None):
+                # need an array for where to set values after interpolating
+                if self.lower is not None:
+                    i_lower = new_index < self.index[0]
+                if self.upper is not None:
+                    i_upper = new_index > self.index[-1]
             out = 10 ** np.interp(
                 new_index,
                 self.index,
                 self.data,
-                left=None if self.lower_constant else np.nan,
-                right=None if self.upper_constant else np.nan,
+                left=None if self.lower is None else np.nan,
+                right=None if self.upper is None else np.nan,
             )
-            out[np.isnan(out)] = 0
+            if self.lower is not None:
+                out[i_lower] = self.lower
+            if self.upper is not None:
+                out[i_upper] = self.upper
         else:
             out = np.interp(
                 new_index,
                 self.index,
                 self.data,
-                left=None if self.lower_constant else 0,
-                right=None if self.upper_constant else 0,
+                left=self.lower,
+                right=self.upper,
             )
         # cast as Quantity and return
         return Quantity(out, self.data_unit)
