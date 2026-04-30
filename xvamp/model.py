@@ -1045,22 +1045,25 @@ class Duan2010(Model):
         units |= {el_density.info.name: el_density.unit}
 
         # get cloud values
-        cloud_altitude, cloud_mass_density, cloud_concentration = Duan2010.get_clouds(
-            altitude=altitude, temperature=temperature, pressure=pressure
-        )
-        # make cloud dataframe for later merging
-        cloud_df = pd.DataFrame(
-            index=cloud_altitude.to("km").value,
-            data={
-                cloud_mass_density.info.name: cloud_mass_density.value,
-                cloud_concentration.info.name: cloud_concentration.value,
-            },
-        )
-        # save units
-        units |= {
-            cloud_mass_density.info.name: cloud_mass_density.unit,
-            cloud_concentration.info.name: cloud_concentration.unit,
-        }
+        if use_clouds_from != "none":
+            cloud_altitude, cloud_mass_density, cloud_concentration = (
+                Duan2010.get_clouds(
+                    altitude=altitude, temperature=temperature, pressure=pressure
+                )
+            )
+            # make cloud dataframe for later merging
+            cloud_df = pd.DataFrame(
+                index=cloud_altitude.to("km").value,
+                data={
+                    cloud_mass_density.info.name: cloud_mass_density.value,
+                    cloud_concentration.info.name: cloud_concentration.value,
+                },
+            )
+            # save units
+            units |= {
+                cloud_mass_density.info.name: cloud_mass_density.unit,
+                cloud_concentration.info.name: cloud_concentration.unit,
+            }
 
         # part 3: combine all physical quantities, mixing ratios, electron density,
         # and cloud profile, ensuring a minimum spacing of altitude values
@@ -1083,17 +1086,18 @@ class Duan2010(Model):
         # merge with electron density
         bigdf = bigdf.merge(el_df, how="outer", left_index=True, right_index=True)
         # merge with cloud quantities
-        bigdf = bigdf.merge(cloud_df, how="outer", left_index=True, right_index=True)
+        if use_clouds_from != "none":
+            bigdf = bigdf.merge(
+                cloud_df, how="outer", left_index=True, right_index=True
+            )
 
         # part 4: inter- and extrapolating
 
         # define logarithmic quantities
         intp_quants = list(interpolators.keys())
-        log_list = [
-            s
-            for s in all_species + ["pressure", cloud_mass_density.info.name]
-            if s not in intp_quants
-        ]
+        log_list = [s for s in all_species if s not in intp_quants] + ["pressure"]
+        if use_clouds_from != "none":
+            log_list.append(cloud_mass_density.info.name)
         if use_compressible_gas:
             log_list.append("mass density")
         # define extrapolating behavior
@@ -1130,8 +1134,9 @@ class Duan2010(Model):
         # component quantities
         self.molar_fractions = bigqt[all_species]
         # cloud quantities
-        self.cloud_mass_density = bigqt[cloud_mass_density.info.name]
-        self.cloud_concentration = bigqt[cloud_concentration.info.name]
+        if use_clouds_from != "none":
+            self.cloud_mass_density = bigqt[cloud_mass_density.info.name]
+            self.cloud_concentration = bigqt[cloud_concentration.info.name]
 
         # part 6: computation of total and per-species densities
 
@@ -1331,12 +1336,13 @@ class Duan2010(Model):
 
         # sections 2.1.5 and 2.2.5: clouds
         # add quantities to existing QTable
-        self.polarizations["cloud"], self.absorptions["cloud"] = (
-            self.evaluate_cloud_permittivity(
-                use_clouds_from=use_clouds_from,
-                use_cimino_fitted_lookup=use_cimino_fitted_lookup,
+        if use_clouds_from != "none":
+            self.polarizations["cloud"], self.absorptions["cloud"] = (
+                self.evaluate_cloud_permittivity(
+                    use_clouds_from=use_clouds_from,
+                    use_cimino_fitted_lookup=use_cimino_fitted_lookup,
+                )
             )
-        )
 
         # section 2.1.2: sum of polarizations
         self.polarization = self.sum_polarizations()
@@ -2340,6 +2346,11 @@ class Duan2010(Model):
         cloud_absorp
             Absorption of the cloud (accounting for its volume fraction)
         """
+        # early return if we ignore clouds
+        if use_clouds_from == "none":
+            return Quantity(
+                np.zeros(self.altitude.size), u.dimensionless_unscaled
+            ), Quantity(np.zeros(self.altitude.size), "1/cm")
         # get the complex relative permittivity of the clouds
         if use_cimino_fitted_lookup:
             eps_prime_r_H2SO4_H2O, eps_dprime_r_H2SO4_H2O = (
@@ -2358,66 +2369,66 @@ class Duan2010(Model):
                 )
             )
         # convert the relative permittivity to polarization
-        if use_clouds_from:
-            # use the equations in the Cimino paper
-            # calculate mass of shell and core
-            d_shell = self.cloud_mass_density / (1 + cimino1982.RATIO_MASS_DROPLETS)
-            d_core = cimino1982.RATIO_MASS_DROPLETS * d_shell
-            vol_frac_droplets = (
-                d_core / cimino1982.D_DROPLET_CORE
-                + d_shell / cimino1982.D_DROPLET_SHELL
-            ).decompose()
-            # compute complex polarization of droplets using eq. (10)
-            cloud_Pnu = cimino1982.get_h2so4_droplet_polarization(
-                eps_prime_r_H2SO4_H2O - 1j * eps_dprime_r_H2SO4_H2O
-            )
-            # save
-            cloud_pol = cloud_Pnu.real * vol_frac_droplets
-        else:
-            # follow section 2.1.5
-            # we look up (i.e., interpolate) to get the density
-            # of the concentrated droplets
-            d_concentr_H2SO4 = Quantity(
-                np.interp(
-                    self.cloud_concentration,
-                    duan2010figures.tables["4"]["Weight Percentage"].to("%").value,
-                    duan2010figures.tables["4"]["Density"].value,
-                    left=np.nan,
-                    right=np.nan,
-                ),
-                duan2010figures.tables["4"]["Density"].unit,
-            )
-            # calculate the spreading ratio
-            eta_s = (d_concentr_H2SO4 / self.cloud_mass_density).decompose()
-            # convert it to polarization
-            P_concentr_H2SO4_H2O = Duan2010.eq3(eps_prime_r_H2SO4_H2O)
-            # and finally calculate the polarization of the distributed solution
-            P_distr_H2SO4_H2O = P_concentr_H2SO4_H2O / eta_s
-            # since eta_s is the inverse of the volume fraction, the computed
-            # polarization already accounts for its density in the atmosphere
-            cloud_pol = P_distr_H2SO4_H2O
-        # convert the relative permittivity to absorption
-        if use_clouds_from:
-            if use_cimino_fitted_lookup:
-                # approximation used by Duan et al. paper
-                cloud_Pnu_imag = np.abs(cloud_Pnu.imag.value)
-            else:
-                # we can use the actual definition from Cimino
-                cloud_Pnu_imag = -cloud_Pnu.imag.value
-            # eq. (16)
-            cloud_absorp = Quantity(
-                0.6
-                * np.pi
-                * cloud_Pnu_imag
-                * vol_frac_droplets.to("cm3/m3").value
-                / VISAR_WAVELENGTH.to("cm").value,
-                "1/km",
-            ).decompose()
-        else:
-            # follow section 2.2.5
-            cloud_absorp = (
-                Duan2010.eq25(eps_prime_r_H2SO4_H2O, eps_dprime_r_H2SO4_H2O) / eta_s
-            )
+        match use_clouds_from:
+            case "cimino":
+                # use the equations in the Cimino paper
+                # calculate mass of shell and core
+                d_shell = self.cloud_mass_density / (1 + cimino1982.RATIO_MASS_DROPLETS)
+                d_core = cimino1982.RATIO_MASS_DROPLETS * d_shell
+                vol_frac_droplets = (
+                    d_core / cimino1982.D_DROPLET_CORE
+                    + d_shell / cimino1982.D_DROPLET_SHELL
+                ).decompose()
+                # compute complex polarization of droplets using eq. (10)
+                cloud_Pnu = cimino1982.get_h2so4_droplet_polarization(
+                    eps_prime_r_H2SO4_H2O - 1j * eps_dprime_r_H2SO4_H2O
+                )
+                # save polarization
+                cloud_pol = cloud_Pnu.real * vol_frac_droplets
+                # convert the relative permittivity to absorption
+                if use_cimino_fitted_lookup:
+                    # approximation used by Duan et al. paper
+                    cloud_Pnu_imag = np.abs(cloud_Pnu.imag.value)
+                else:
+                    # we can use the actual definition from Cimino
+                    cloud_Pnu_imag = -cloud_Pnu.imag.value
+                # eq. (16)
+                cloud_absorp = Quantity(
+                    0.6
+                    * np.pi
+                    * cloud_Pnu_imag
+                    * vol_frac_droplets.to("cm3/m3").value
+                    / VISAR_WAVELENGTH.to("cm").value,
+                    "1/km",
+                ).decompose()
+            case "duan":
+                # follow section 2.1.5
+                # we look up (i.e., interpolate) to get the density
+                # of the concentrated droplets
+                d_concentr_H2SO4 = Quantity(
+                    np.interp(
+                        self.cloud_concentration,
+                        duan2010figures.tables["4"]["Weight Percentage"].to("%").value,
+                        duan2010figures.tables["4"]["Density"].value,
+                        left=np.nan,
+                        right=np.nan,
+                    ),
+                    duan2010figures.tables["4"]["Density"].unit,
+                )
+                # calculate the spreading ratio
+                eta_s = (d_concentr_H2SO4 / self.cloud_mass_density).decompose()
+                # convert it to polarization
+                P_concentr_H2SO4_H2O = Duan2010.eq3(eps_prime_r_H2SO4_H2O)
+                # and finally calculate the polarization of the distributed solution
+                P_distr_H2SO4_H2O = P_concentr_H2SO4_H2O / eta_s
+                # since eta_s is the inverse of the volume fraction, the computed
+                # polarization already accounts for its density in the atmosphere
+                cloud_pol = P_distr_H2SO4_H2O
+                # convert the relative permittivity to absorption
+                # follow section 2.2.5
+                cloud_absorp = (
+                    Duan2010.eq25(eps_prime_r_H2SO4_H2O, eps_dprime_r_H2SO4_H2O) / eta_s
+                )
         # done
         return cloud_pol.unmasked, cloud_absorp.unmasked
 
