@@ -8,13 +8,12 @@ from typing import Literal, Tuple
 import numpy as np
 from importlib.resources import files as res_files
 import astropy.units as u
-from astropy.units import Quantity, cds
-from astropy.table import Table, QTable, hstack, vstack, join
+from astropy.units import Quantity
+from astropy.table import Table, QTable, hstack
 from scipy.interpolate import LinearNDInterpolator, Akima1DInterpolator
 
 # package imports
 from .. import data
-from ..utils import read_unit_csv, Profile
 
 # define public interface
 __all__ = ["get_h2s04_rel_permittivity", "get_h2so4_droplet_polarization_volfrac"]
