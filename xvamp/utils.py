@@ -408,6 +408,174 @@ def interpolate_nodes(
     return out
 
 
+class Profile:
+
+    index: NDArray[np.floating]
+    """ Index nodes of data """
+    data: NDArray[np.floating]
+    """ Data values at the indices """
+    index_unit: Unit
+    """ Unit of :attr:`~index` """
+    data_unit: Unit
+    """ Unit of :attr:`~data` """
+    log: bool
+    """ Whether :attr:`~data` is saved in logarithmic space """
+    lower_constant: bool
+    """ Sets downward continuation to constant rather than 0 """
+    upper_constant: bool
+    """ Sets downward continuation to constant rather than 0 """
+
+    def __init__(
+        self,
+        index: NDArray[np.floating] | Quantity,
+        data: NDArray[np.floating] | Quantity,
+        index_unit: Unit | str | None = None,
+        data_unit: Unit | str | None = None,
+        scale: float = 1.0,
+        log: bool = False,
+        lower: float | None = 0.0,
+        upper: float | None = 0.0,
+    ):
+        """
+        Class providing interfaces to loading and interpolating generic atmospheric
+        profiles.
+
+        Parameters
+        ----------
+        index
+            Index nodes (e.g., altitudes) at which ``data`` values are present.
+            If not a :class:`~astropy.units.Quantity`, ``index_unit`` must be set.
+        data
+            Data nodes (e.g., pressure or mixing ratio) at the ``index`` locations.
+            If not a :class:`~astropy.units.Quantity`, ``data_unit`` must be set.
+        index_unit
+            Unit of ``index``. Ignored if ``index`` is a
+            :class:`~astropy.units.Quantity`, required if it is not.
+        data_unit
+            Unit of ``index``. Ignored if ``index`` is a
+            :class:`~astropy.units.Quantity`, required if it is not.
+        scale
+            Scaling factor to apply to data (in linear space)
+        log
+            Set to ``True`` if the input nodes are in logarithmic space,
+            so that the output is transformed back to linear space
+        lower
+            Set the lower (left) values outside of the interpolating range to this
+            value (default ``0``). Set to ``None`` to use the leftmost valid value (see
+            :func:`numpy.interp` ``left`` parameter with different default).
+        upper
+            Set the upper (right) values outside of the interpolating range to this
+            value (default ``0``). Set to ``None`` to use the rightmost valid value (see
+            :func:`numpy.interp` ``right`` parameter with different default).
+        """
+        # save index
+        if isinstance(index, Quantity):
+            self.index = index.value
+            self.index_unit = index.unit
+        else:
+            if index_unit is None:
+                raise ValueError(
+                    "Must define 'index_unit' if 'index' is not a Quantity"
+                )
+            self.index = index
+            self.index_unit = Unit(index_unit)
+        # save data
+        if isinstance(data, Quantity):
+            self.data = data.value
+            self.data_unit = data.unit
+        else:
+            if data_unit is None:
+                raise ValueError("Must define 'data_unit' if 'data' is not a Quantity")
+            self.data = data
+            self.data_unit = Unit(data_unit)
+        # enfore array type
+        self.index = np.atleast_1d(self.index)
+        if not self.index.ndim == 1:
+            raise ValueError("'index' must be one-dimensional")
+        self.data = np.atleast_1d(self.data)
+        if not self.data.ndim == 1:
+            raise ValueError("'data' must be one-dimensional")
+        # check their sizes
+        if not self.index.size == self.data.size:
+            raise ValueError(
+                f"Mismatching array sizes (index: {self.index.size}, data: {self.data.size})"
+            )
+        # check monotonicity of index
+        if not np.all(np.diff(self.index) > 0):
+            raise ValueError("Index not strictly monotonically increasing")
+        # apply scaling to data
+        if log:
+            self.data += np.log10(scale)
+        else:
+            self.data *= scale
+        # save settings
+        self.log = log
+        self.lower = lower
+        self.upper = upper
+        # done
+
+    def __len__(self) -> int:
+        return self.index.size
+
+    def __str__(self) -> str:
+        return (
+            f"Profile of length {len(self)} with\n"
+            f"- index_unit={self.index_unit}\n"
+            f"- data_unit={self.data_unit}\n"
+            f"- log={self.log}\n"
+            f"- lower={self.lower}\n"
+            f"- upper={self.upper}"
+        )
+
+    def __call__(self, new_index: NDArray[np.floating] | Quantity) -> Quantity:
+        """
+        Linearly interpolates the profile data (either in linear or logarithmic space,
+        depending on how it is stored, see :attr:`~log`) onto a new index given the
+        down- and upward continuation settings in :attr:`~lower` and :attr:`~upper`.
+
+        Parameters
+        ----------
+        new_index
+            New index values (if not a :class:`~astropy.units.Quantity`, must already
+            be in the unit of this profile [:attr:`~index_unit`])
+
+        Returns
+        -------
+            New data values in [:attr:`~data_unit`]
+        """
+        # make sure we have the right index units
+        new_index = cast_to_np(new_index, self.index_unit)
+        # continue depending on whether we're interpolating in logarithmic space or not
+        if self.log:
+            if (self.lower is not None) or (self.upper is not None):
+                # need an array for where to set values after interpolating
+                if self.lower is not None:
+                    i_lower = new_index < self.index[0]
+                if self.upper is not None:
+                    i_upper = new_index > self.index[-1]
+            out = 10 ** np.interp(
+                new_index,
+                self.index,
+                self.data,
+                left=None if self.lower is None else np.nan,
+                right=None if self.upper is None else np.nan,
+            )
+            if self.lower is not None:
+                out[i_lower] = self.lower
+            if self.upper is not None:
+                out[i_upper] = self.upper
+        else:
+            out = np.interp(
+                new_index,
+                self.index,
+                self.data,
+                left=self.lower,
+                right=self.upper,
+            )
+        # cast as Quantity and return
+        return Quantity(out, self.data_unit)
+
+
 @dataclass
 class BoundedInterpolatingBasis:
     """
