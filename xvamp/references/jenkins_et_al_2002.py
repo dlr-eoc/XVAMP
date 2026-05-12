@@ -18,8 +18,10 @@ TABLES = ["fig6raw"]
 
 # get local installation folder paths
 datafolder = res_files(data) / BASEFOLDER
+""" Resolved data folder location """
 # load raw data files
 tables = {t: read_unit_csv(datafolder / f"table{t}.csv") for t in TABLES}
+""" Loaded tables """
 
 
 # define function to extract a profile tied to an assumed SO2 abundance

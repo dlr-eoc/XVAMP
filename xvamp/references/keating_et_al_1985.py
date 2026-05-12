@@ -24,8 +24,10 @@ SZA = Quantity([16, 34, 61, 90, 119, 146, 164], "°")
 
 # get local installation folder paths
 datafolder = res_files(data) / BASEFOLDER
+""" Resolved data folder location """
 # load raw data files
 tables = {t: read_unit_csv(datafolder / f"table{t}.csv") for t in TABLES}
+""" Loaded tables """
 
 # combine the three tables that each together build the standard profiles
 # from 100-250km for noon and midnight
@@ -57,9 +59,9 @@ solar zenith angle between 150-250km
 units_150km_250km = [
     tables["4-4"].columns[i].unit for i in range(dcube_150km_250km.shape[1])
 ]
-""" Units of :attr:`~Keating1985.dcube_150km_250km` """
+""" Units of :attr:`~dcube_150km_250km` """
 names_150km_250km = tables["4-4"].colnames
-""" Column (axis 1) names of of :attr:`~Keating1985.dcube_150km_250km` """
+""" Column (axis 1) names of of :attr:`~dcube_150km_250km` """
 
 # build the (smaller) datacube for 100-150km, which only contains
 # noon and midnight
@@ -74,6 +76,6 @@ midnight/noon between 100-150km
 units_100km_150km = [
     tables["4-15"].columns[i].unit for i in range(dcube_100km_150km.shape[1])
 ]
-""" Units of :attr:`~Keating1985.dcube_100km_150km` """
+""" Units of :attr:`~dcube_100km_150km` """
 names_100km_150km = tables["4-15"].colnames
-""" Column (axis 1) names of of :attr:`~Keating1985.dcube_100km_150km` """
+""" Column (axis 1) names of of :attr:`~dcube_100km_150km` """
