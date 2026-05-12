@@ -491,18 +491,36 @@ class Profile:
         # enfore array type
         self.index = np.atleast_1d(self.index).astype(float)
         if not self.index.ndim == 1:
-            raise ValueError("'index' must be one-dimensional")
+            raise ValueError(
+                f"'index' must be one-dimensional, got shape {self.index.shape}"
+            )
         self.data = np.atleast_1d(self.data).astype(float)
         if not self.data.ndim == 1:
-            raise ValueError("'data' must be one-dimensional")
+            raise ValueError(
+                f"'data' must be one-dimensional, got shape {self.data.shape}"
+            )
         # check their sizes
         if not self.index.size == self.data.size:
             raise ValueError(
-                f"Mismatching array sizes (index: {self.index.size}, data: {self.data.size})"
+                "Mismatching array sizes "
+                f"(index: {self.index.size}, data: {self.data.size})"
             )
         # check monotonicity of index
-        if not np.all(np.diff(self.index) > 0):
-            raise ValueError("Index not strictly monotonically increasing")
+        index_pos_diff = np.diff(self.index) > 0
+        if not np.all(index_pos_diff):
+            err_subset = np.flatnonzero(~index_pos_diff)
+            err_subset = np.unique(
+                np.clip(
+                    np.r_[err_subset - 1, err_subset, err_subset + 1],
+                    a_min=0,
+                    a_max=self.index.size - 1,
+                )
+            )
+            err_df = DataFrame(
+                index=err_subset,
+                data={"index": self.index[err_subset], "data": self.data[err_subset]},
+            )
+            raise ValueError(f"Index not strictly monotonically increasing:\n{err_df}")
         # apply scaling to data
         if log:
             self.data += np.log10(scale)
