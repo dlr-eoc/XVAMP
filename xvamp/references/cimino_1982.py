@@ -54,7 +54,12 @@ tables = {t: Table.read(datafolder / f"table{t}.csv") for t in TABLES}
 
 
 # function to build interpolators
-def _get_interpolators():
+def _get_interpolators() -> Tuple[
+    LinearNDInterpolator,
+    LinearNDInterpolator,
+    LinearNDInterpolator,
+    LinearNDInterpolator,
+]:
 
     # rename and join the two tables for the imaginary part
     t_real = tables["fig7raw"]

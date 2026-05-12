@@ -1,5 +1,5 @@
 """
-Module that provides the background, reference atmospheric properties.
+Module that provides the reference profiles from :cite:t:`james1997`.
 """
 
 # standard imports
@@ -31,7 +31,7 @@ tables = {t: read_unit_csv(datafolder / f"table{t}.csv") for t in TABLES}
 
 
 # function to derive mass mixing ratio
-def _get_cloud_mass_mixing_ratio():
+def _get_cloud_mass_mixing_ratio() -> Profile:
     # combine the two tables for Fig. 4 to get the mass mixing ratio
     # of the liquid part of the clouds
     clouds = join(
