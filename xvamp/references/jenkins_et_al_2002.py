@@ -8,7 +8,7 @@ from importlib.resources import files as res_files
 
 # package imports
 from .. import data
-from ..utils import read_unit_csv
+from ..utils import read_unit_csv, Profile
 
 # data location
 BASEFOLDER = "jenkins_et_al_2002"
@@ -21,19 +21,29 @@ datafolder = res_files(data) / BASEFOLDER
 # load raw data files
 tables = {t: read_unit_csv(datafolder / f"table{t}.csv") for t in TABLES}
 
-# extract different H2SO4 profiles as a function of assumed SO2 abundance
-for cn in tables["fig6raw"].colnames[::2]:
+
+# define function to extract a profile tied to an assumed SO2 abundance
+def _get_h2so4_assumed_so2(assumed_so2: str) -> Profile:
     # get assumed SO2 abundance
-    assum_so2 = cn.split(":")[0]
-    # quick access to subtable
-    src_columns = [f"{assum_so2}: altitude", cn]
-    t = tables["fig6raw"][src_columns]
+    col_alt = f"{assumed_so2} ppm SO2: altitude"
+    col_mr = f"{assumed_so2} ppm SO2: mixing ratio of H2SO4"
     # get mask of valid rows
     try:
-        mask = ~t[cn].mask
+        mask = ~tables["fig6raw"][col_mr].mask
     except AttributeError:  # not a masked quantity, so all rows valid
         mask = np.s_[:]
-    # rename columns
-    t.rename_columns(src_columns, ["altitude", "mixing ratio of H2SO4"])
-    # save valid rows as new table
-    tables[assum_so2] = t[mask]
+    # create profile and return
+    return Profile(tables["fig6raw"][col_alt][mask], tables["fig6raw"][col_mr][mask])
+
+
+# create profiles
+h2so4_molar_fraction_0ppm_so2 = _get_h2so4_assumed_so2("0")
+""" H2SO4 molar fraction profile from :cite:t:`jenkins2002` assuming 0 ppm SO2 """
+h2so4_molar_fraction_50ppm_so2 = _get_h2so4_assumed_so2("50")
+""" H2SO4 molar fraction profile from :cite:t:`jenkins2002` assuming 50 ppm SO2 """
+h2so4_molar_fraction_100ppm_so2 = _get_h2so4_assumed_so2("100")
+""" H2SO4 molar fraction profile from :cite:t:`jenkins2002` assuming 100 ppm SO2 """
+h2so4_molar_fraction_150ppm_so2 = _get_h2so4_assumed_so2("150")
+""" H2SO4 molar fraction profile from :cite:t:`jenkins2002` assuming 150 ppm SO2 """
+h2so4_molar_fraction_200ppm_so2 = _get_h2so4_assumed_so2("200")
+""" H2SO4 molar fraction profile from :cite:t:`jenkins2002` assuming 200 ppm SO2 """
