@@ -32,6 +32,15 @@ __all__ = [
 # data location
 BASEFOLDER = "duan_et_al_2010"
 """ Base folder for data """
+TABLES = [f"fig{n}" for n in ["6b", "7a", "7b", "7d", "8a", "8b", "9a", "9b"]] + ["4"]
+""" Table numbers to load """
+
+# get local installation folder paths
+datafolder = res_files(data) / BASEFOLDER
+""" Resolved data folder location """
+# load raw data files
+tables = {t: read_unit_csv(datafolder / f"table{t}.csv") for t in TABLES}
+""" Loaded tables """
 
 # profiles defined manually
 
@@ -296,11 +305,13 @@ ocs_old_molar_fraction = Profile(
 """ Carbonyl sulfide molar fraction profile from the reference code """
 
 # profile loaded from Table 4
-
-tab4 = read_unit_csv(res_files(data) / BASEFOLDER / f"table4.csv")
 h2so4_density_conc = Profile(
-    tab4["Weight Percentage"].to("%"),
-    tab4["Density"],
+    tables["4"]["Weight Percentage"].to("%"),
+    tables["4"]["Density"],
     lower=np.nan,
     upper=np.nan,
 )
+"""
+Relationship profile between H2SO4 weight percentage of diluted sulfuric
+acid and the resulting mass density
+"""
