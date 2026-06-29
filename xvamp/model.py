@@ -919,7 +919,7 @@ class Duan2010(Model):
             - ``"jenkins:x"``: Profiles of :cite:t:`jenkins2002` for different assumed
               SO2 abundances *x* (valid values: 0, 50, 100, 150, 200). This changes the
               attenuation by about a tenth of a dB and the delay by some millimeters.
-            - ``"orbit:i"``: Raw H2SO4 profiles from :cite:t:`jenkins1996` for a given
+            - ``"orbit:i"``: Raw H2SO4 profiles from :cite:t:`jenkins1996a` for a given
               Magellan orbit *i* (valid values: 3212, 3213, 3214). This changes the
               attenuation by about a dB and the delay of some millimeters.
 
@@ -1653,7 +1653,7 @@ class Duan2010(Model):
             - ``"jenkins:x"``: Profiles of :cite:t:`jenkins2002` for different assumed
               SO2 abundances *x* (valid values: 0, 50, 100, 150, 200). This changes the
               attenuation by about a tenth of a dB and the delay by some millimeters.
-            - ``"orbit:i"``: Raw H2SO4 profiles from :cite:t:`jenkins1996` for a given
+            - ``"orbit:i"``: Raw H2SO4 profiles from :cite:t:`jenkins1996a` for a given
               Magellan orbit *i* (valid values: 3212, 3213, 3214). This changes the
               attenuation by about a dB and the delay of some millimeters.
 

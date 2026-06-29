@@ -1109,7 +1109,8 @@ class KolodnerSteffes1998(Reference):
 class Magellan321X(Reference):
     """
     Reference class that provides the profiles from the Magellan orbits no. 3212,
-    3213, and 3214 from :cite:t:`jenkins1996`.
+    3213, and 3214 from :cite:t:`jenkins1996` and :cite:t:`jenkins1996a` as
+    processed by :cite:t:`jenkins1994`.
     """
 
     BASEFOLDER = "magellan321x"
