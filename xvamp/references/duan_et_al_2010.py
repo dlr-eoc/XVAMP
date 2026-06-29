@@ -13,22 +13,6 @@ from astropy.units import cds
 from .. import data
 from ..utils import read_unit_csv, Profile
 
-# define public interface
-__all__ = [
-    "electron_density",
-    "h2o_molar_fraction",
-    "h2o_old_molar_fraction",
-    "so2_molar_fraction",
-    "so2_old_molar_fraction",
-    "h2so4_molar_fraction",
-    "h2so4_3212_molar_fraction",
-    "co_molar_fraction",
-    "co_old_molar_fraction",
-    "ocs_molar_fraction",
-    "ocs_old_molar_fraction",
-    "h2so4_density_conc",
-]
-
 # data location
 BASEFOLDER = "duan_et_al_2010"
 """ Base folder for data """

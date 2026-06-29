@@ -15,9 +15,6 @@ from scipy.interpolate import LinearNDInterpolator, Akima1DInterpolator
 # package imports
 from .. import data
 
-# define public interface
-__all__ = ["get_h2s04_rel_permittivity", "get_h2so4_droplet_polarization_volfrac"]
-
 # data location
 BASEFOLDER = "cimino_1982"
 """ Base folder for data """

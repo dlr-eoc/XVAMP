@@ -13,9 +13,6 @@ from astropy.table import join
 from .. import data
 from ..utils import read_unit_csv, Profile
 
-# define public interface
-__all__ = ["cloud_concentration", "mass_mixing_ratio_clouds"]
-
 # data location
 BASEFOLDER = "james_et_al_1997"
 """ Base folder for data """
