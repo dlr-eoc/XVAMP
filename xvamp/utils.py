@@ -1037,6 +1037,73 @@ def get_sza(lst: float_or_array, lat: float_or_array) -> float_or_array:
     return np.arccos(np.cos((lst - 12) / 24 * 2 * np.pi) * np.cos(lat))
 
 
+def _make_broadcastable_input(
+    *inputs: Quantity | float_or_array,
+) -> Tuple[Quantity | float_or_array, ...]:
+    """
+    Parse all inputs to a commons length.
+
+    Parameters
+    ----------
+    *args
+        Input floats, arrays, or Quantities.
+
+    Returns
+    -------
+        All inputs but cast to 1D shape
+
+    Raises
+    ------
+    ValueError
+        If the inputs cannot be cast to the same length, or an input is more than
+        one-dimensional
+    """
+    # cast everything to 1D
+    out = tuple(np.atleast_1d(inp) for inp in inputs)
+    # check dimensions
+    for i, o in enumerate(out):
+        if o.ndim != 1:
+            raise ValueError(f"Argument #{i} is {o.ndim}-dimensional")
+    # get common size
+    nout = max(o.size for o in out)
+    # check if all inputs are either scalars or nout long
+    for i, o in enumerate(out):
+        if o.size not in [1, nout]:
+            raise ValueError(f"Argument #{i} is {o.size} long, expected 1 or {nout}")
+    # done
+    return out
+
+
+def height_to_radius(
+    height: Quantity["length"] | float_or_array,
+    planet_radius: Quantity["length"] | float_or_array = VENUS_RADIUS,
+    unit: Unit = u.km,
+) -> Quantity["length"]:
+    """
+    Add a planetary radius to a height and return the radius as a
+    :class:`astropy.unit.Quantity`.
+
+    Parameters
+    ----------
+    height
+        Height to be converted to a radius.
+        If not a Quantity, the ``unit`` keyword must match.
+    planet_radius
+        Planet radius to use.
+        If not a Quantity, the ``unit`` keyword must match.
+    unit
+        :class:`~astropy.unit.Unit` of the output.
+
+    Returns
+    -------
+        Equivalent radius of the height input
+    """
+    try:
+        return Quantity(planet_radius + height, unit)
+    except UnitConversionError:
+        return planet_radius + Quantity(height, unit)
+
+
 def geometry_from_central_angle(
     central_angle: Quantity["angle"] | float_or_array,
     height_terrain: Quantity["length"] | float_or_array,
@@ -1068,36 +1135,14 @@ def geometry_from_central_angle(
         Geometric incidence angle from the surface to the platform [rad].
     """
     # input check
-    central_angle = np.atleast_1d(central_angle)
-    assert central_angle.ndim == 1
-    height_terrain = np.atleast_1d(height_terrain)
-    assert height_terrain.ndim == 1
-    height_platform = np.atleast_1d(height_platform)
-    assert height_platform.ndim == 1
-    nout = np.max([central_angle.size, height_terrain.size, height_platform.size])
-    assert central_angle.size in [
-        1,
-        nout,
-    ], f"{central_angle.size=}, expected 1 or {nout}."
-    assert height_terrain.size in [
-        1,
-        nout,
-    ], f"{height_terrain.size=}, expected 1 or {nout}."
-    assert height_platform.size in [
-        1,
-        nout,
-    ], f"{height_platform.size=}, expected 1 or {nout}."
+    central_angle, height_terrain, height_platform = _make_broadcastable_input(
+        central_angle, height_terrain, height_platform
+    )
     # parse input to common units
     if not isinstance(central_angle, Quantity):
         central_angle = Quantity(central_angle, "rad")
-    try:
-        rp = VENUS_RADIUS + height_platform
-    except UnitConversionError:
-        rp = VENUS_RADIUS + Quantity(height_platform, "km")
-    try:
-        rt = VENUS_RADIUS + height_terrain
-    except UnitConversionError:
-        rt = VENUS_RADIUS + Quantity(height_terrain, "km")
+    rp = height_to_radius(height_platform)
+    rt = height_to_radius(height_terrain)
     # avoid duplicate operations
     rp_sq = rp**2
     rt_sq = rt**2
@@ -1114,6 +1159,65 @@ def geometry_from_central_angle(
     )
     # done
     return geometric_range, geometric_look_angle, geometric_incidence_angle
+
+
+def get_cross_track_displacement(
+    look_angle: Quantity["angle"] | float_or_array,
+    central_angle: Quantity["angle"] | float_or_array,
+    height_terrain: Quantity["length"] | float_or_array,
+    height_platform: Quantity["length"] | float_or_array,
+) -> Quantity["length"]:
+    """
+    Calculate the cross-track displacement between a given central angle and one
+    derived from a look angle assuming vacuum propagation.
+
+    Parameters
+    ----------
+    look_angle
+        Look angle(s) of the instrument in [rad], if not a
+        :class:`~astropy.units.Quantity`
+    central_angle
+        Central angle(s) of the platform in [rad], if not a
+        :class:`~astropy.units.Quantity`.
+    height_terrain
+        Height(s) of the terrain relative to the mean planet radius in [km],
+        if not a :class:`~astropy.units.Quantity`.
+    height_platform
+        Height(s) of the platform relative to the mean planet radius in [km],
+        if not a :class:`~astropy.units.Quantity`.
+
+    Returns
+    -------
+    cross_track_displacement
+        Distance along the spherical planet between the true point on the ground and
+        the point if the look angle went through vacuum
+    """
+    # input check
+    look_angle, central_angle, height_terrain, height_platform = (
+        _make_broadcastable_input(
+            look_angle, central_angle, height_terrain, height_platform
+        )
+    )
+    # parse input to common units
+    if not isinstance(look_angle, Quantity):
+        look_angle = Quantity(look_angle, "rad")
+    if not isinstance(central_angle, Quantity):
+        central_angle = Quantity(central_angle, "rad")
+    rp = height_to_radius(height_platform)
+    rt = height_to_radius(height_terrain)
+    # avoid duplicate operations
+    rp_sq = rp**2
+    rt_sq = rt**2
+    # get cross-track displacement
+    vacuum_range = rp * np.cos(look_angle) - np.sqrt(
+        rt_sq - (rp * np.sin(look_angle)) ** 2
+    )
+    vacuum_central_angle = np.arccos((rp_sq + rt_sq - vacuum_range**2) / (2 * rp * rt))
+    cross_track_displacement = (
+        (vacuum_central_angle - central_angle) / Quantity(1, "rad") * VENUS_RADIUS
+    )
+    # done
+    return cross_track_displacement
 
 
 def get_brightness_temperature(
