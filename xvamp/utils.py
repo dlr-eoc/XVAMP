@@ -618,9 +618,9 @@ class MultiProfile:
         self,
         index: NDArray[np.floating] | Quantity,
         data: NDArray[np.floating] | Quantity | QTable,
-        data_names: List[str],
         index_unit: Unit | str | None = None,
         data_units: List[Unit] | Unit | str | None = None,
+        data_names: List[str] | None = None,
         scales: List[float] | float = 1.0,
         log: List[bool] = False,
         lower: List[float] | float | None = 0.0,
@@ -640,8 +640,6 @@ class MultiProfile:
             If not a :class:`~astropy.units.Quantity`, ``data_units`` must be set.
             If ``data`` is a 2D NumPy array, ``index`` applies to the first axis
             (matching the :class:`~astropy.table.QTable` layout).
-        data_names
-            List of names of the data column(s).
         index_unit
             Unit of ``index``. Ignored if ``index`` is a
             :class:`~astropy.units.Quantity`, required if it is not.
@@ -650,6 +648,10 @@ class MultiProfile:
             :class:`~astropy.units.Quantity` or :class:`~astropy.table.QTable`,
             required if it is not.
             If a single unit and the data is 2D, the unit is applied to all.
+        data_names
+            List of names of the data column(s). Required if ``data`` is not a
+            :class:`~astropy.table.QTable`, otherwise it is optional and would override
+            the column names.
         scales
             Scaling factor to apply to data (in linear space).
             If a single factor and the data is 2D, the factor is applied to all.
@@ -687,11 +689,13 @@ class MultiProfile:
             )
         # parse data
         if isinstance(data, QTable):
-            data = data.value
             data_units = [data[c].unit for c in data.columns]
+            if data_names is None:
+                data_names = data.colnames
+            data = data.to_pandas().to_numpy()
         elif isinstance(data, Quantity):
-            data = data.value
             data_units = [data.unit]
+            data = data.value
         elif isinstance(data, np.ndarray):
             if data_units is None:
                 raise ValueError("Must define 'data_units' if 'data' is a NumPy array")
