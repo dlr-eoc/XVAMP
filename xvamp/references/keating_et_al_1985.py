@@ -3,6 +3,7 @@ Module that provides the background, reference atmospheric properties.
 """
 
 # standard imports
+from typing import Tuple
 import numpy as np
 from importlib.resources import files as res_files
 from astropy.units import Quantity
@@ -10,7 +11,7 @@ from astropy.table import hstack, vstack
 
 # package imports
 from .. import data
-from ..utils import read_unit_csv
+from ..utils import read_unit_csv, MultiProfile
 
 # data location
 BASEFOLDER = "keating_et_al_1985"
@@ -29,22 +30,56 @@ datafolder = res_files(data) / BASEFOLDER
 tables = {t: read_unit_csv(datafolder / f"table{t}.csv") for t in TABLES}
 """ Loaded tables """
 
-# combine the three tables that each together build the standard profiles
-# from 100-250km for noon and midnight
-tables["day"] = vstack(
-    [
-        hstack([tables["4-4"], tables["4-6"]], join_type="exact"),
-        tables["4-16"][1:],
-    ]
-)
-tables["day"].sort("ALT")
-tables["night"] = vstack(
-    [
-        hstack([tables["4-5"], tables["4-7"]], join_type="exact"),
-        tables["4-15"][1:],
-    ]
-)
-tables["night"].sort("ALT")
+
+# function to combine the different tables to get joint profiles
+# for day and night
+def _combine_tables_day_night() -> (
+    Tuple[MultiProfile, MultiProfile, MultiProfile, MultiProfile]
+):
+    # stack
+    day = vstack(
+        [
+            hstack([tables["4-4"], tables["4-6"]], join_type="exact"),
+            tables["4-16"][1:],
+        ]
+    )
+    night = vstack(
+        [
+            hstack([tables["4-5"], tables["4-7"]], join_type="exact"),
+            tables["4-15"][1:],
+        ]
+    )
+    # sort
+    day.sort("ALT")
+    night.sort("ALT")
+    # convert temperature, pressure, and density to MultiProfiles
+    names_tpd = ["T", "P", "RHO"]
+    mp_day_tpd = MultiProfile(index=tables["day"]["ALT"], data=tables["day"][names_tpd])
+    mp_night_tpd = MultiProfile(
+        index=tables["night"]["ALT"], data=tables["night"][names_tpd]
+    )
+    # convert the atmospheric species to MultiProfiles
+    names_species = ["CO2", "O", "CO", "HE", "N", "N2", "H", "NTOT"]
+    mp_day_species = MultiProfile(
+        index=tables["day"]["ALT"], data=tables["day"][names_species]
+    )
+    mp_night_species = MultiProfile(
+        index=tables["night"]["ALT"], data=tables["night"][names_species]
+    )
+    # done
+    return mp_day_tpd, mp_night_tpd, mp_day_species, mp_night_species
+
+
+# run MultiProfile extractor
+_combined_multiprofiles = _combine_tables_day_night()
+tpd_day = _combined_multiprofiles[0]
+""" Temperature, pressure, and mass density profiles at day """
+tpd_night = _combined_multiprofiles[1]
+""" Temperature, pressure, and mass density profiles at night """
+species_day = _combined_multiprofiles[2]
+""" Species number density profiles (incl. total number density) at day """
+species_night = _combined_multiprofiles[3]
+""" Species number density profiles (incl. total number density) at night """
 
 # build the datacube for 150-250km for the seven samplings of
 # solar zenith angle (which stands in for time)
