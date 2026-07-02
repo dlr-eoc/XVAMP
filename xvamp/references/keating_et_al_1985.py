@@ -54,18 +54,12 @@ def _combine_tables_day_night() -> (
     night.sort("ALT")
     # convert temperature, pressure, and density to MultiProfiles
     names_tpd = ["T", "P", "RHO"]
-    mp_day_tpd = MultiProfile(index=tables["day"]["ALT"], data=tables["day"][names_tpd])
-    mp_night_tpd = MultiProfile(
-        index=tables["night"]["ALT"], data=tables["night"][names_tpd]
-    )
+    mp_day_tpd = MultiProfile(index=day["ALT"], data=day[names_tpd])
+    mp_night_tpd = MultiProfile(index=night["ALT"], data=night[names_tpd])
     # convert the atmospheric species to MultiProfiles
     names_species = ["CO2", "O", "CO", "HE", "N", "N2", "H", "NTOT"]
-    mp_day_species = MultiProfile(
-        index=tables["day"]["ALT"], data=tables["day"][names_species]
-    )
-    mp_night_species = MultiProfile(
-        index=tables["night"]["ALT"], data=tables["night"][names_species]
-    )
+    mp_day_species = MultiProfile(index=day["ALT"], data=day[names_species])
+    mp_night_species = MultiProfile(index=night["ALT"], data=night[names_species])
     # done
     return mp_day_tpd, mp_night_tpd, mp_day_species, mp_night_species
 
