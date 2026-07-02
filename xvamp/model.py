@@ -19,11 +19,11 @@ from scipy.integrate import cumulative_trapezoid
 
 # package imports
 from .constants import *
-from .utils import (
-    float_or_array,
-    fill_df,
-    geometry_from_central_angle,
-    read_polarization_parameters,
+from .utils import float_or_array
+from .utils.interpolate import fill_df
+from .geometry import geometry_from_central_angle
+from .utils.io import read_polarization_parameters
+from .utils.parametersets import (
     HarveyLemmon2005Parameters,
     Pitzer1983Parameters,
     LineShapeParameters,
