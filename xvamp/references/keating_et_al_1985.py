@@ -1,5 +1,6 @@
 """
-Module that provides the background, reference atmospheric properties.
+Module that provides the background, reference atmospheric properties from
+:cite:t:`keating1985`.
 """
 
 # standard imports
