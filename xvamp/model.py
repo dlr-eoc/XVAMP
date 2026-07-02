@@ -1859,7 +1859,7 @@ class Duan2010(Model):
                 # extract X-band data for the given orbit
                 temp = temp[
                     np.logical_and(
-                        temp["WAVELENGTH"] == "S",
+                        temp["WAVELENGTH"] == "X",
                         temp["ORBIT_NUMBER"] == int(i),
                     )
                 ]
