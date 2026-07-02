@@ -12,6 +12,7 @@ from astropy.table import QTable
 
 # package imports
 from .. import data
+from ..utils.io import read_unit_fwf_desc
 
 # data location
 BASEFOLDER = "magellan321x"
@@ -21,37 +22,37 @@ TABLES = ["mgn_abs", "mgn_rtpd"]
 
 # data format information
 DESC_ABS = [
-    ("WAVELENGTH", "", "U1", 3),
-    ("ORBIT_NUMBER", "", "i", 5),
-    ("ALTITUDE", "km", "f8", 7),
-    ("ABSORPTIVITY", "dB/km", "f8", 9),
-    ("ABSORP_DEV", "dB/km", "f8", 8),
-    ("H2SO4_VOLMIX", "ppm", "f8", 6),
-    ("H2SO4_VM_DEV", "ppm", "f8", 6),
-    ("LATITUDE", "°", "f8", 7),
-    ("LONGITUDE", "°", "f8", 8),
-    ("ZENITH_ANGLE", "°", "f8", 8),
-    ("LOCAL_TIME", "h", "f8", 7),
-    ("ERT", "s", "f8", 10),
+    ("WAVELENGTH", "U1", 3, ""),
+    ("ORBIT_NUMBER", "i", 5, ""),
+    ("ALTITUDE", "f8", 7, "km"),
+    ("ABSORPTIVITY", "f8", 9, "dB/km"),
+    ("ABSORP_DEV", "f8", 8, "dB/km"),
+    ("H2SO4_VOLMIX", "f8", 6, "ppm"),
+    ("H2SO4_VM_DEV", "f8", 6, "ppm"),
+    ("LATITUDE", "f8", 7, "°"),
+    ("LONGITUDE", "f8", 8, "°"),
+    ("ZENITH_ANGLE", "f8", 8, "°"),
+    ("LOCAL_TIME", "f8", 7, "h"),
+    ("ERT", "f8", 10, "s"),
 ]
 """ Data format description of the ``mgn_abs.dat`` file """
 DESC_RTPD = [
-    ("WAVELENGTH", "", "U1", 3),
-    ("ORBIT_NUMBER", "", "i", 5),
-    ("ALTITUDE", "km", "f8", 7),
-    ("REFRACTIVITY", "Nunit", "f8", 9),
-    ("REFRACT_DEV", "Nunit", "f8", 6),
-    ("TEMPERATURE", "K", "f8", 7),
-    ("TEMP_DEV", "K", "f8", 6),
-    ("PRESSURE", "bar", "f8", 9),
-    ("PRESS_DEV", "bar", "f8", 9),
-    ("DENSITY", "kg/m3", "f8", 8),
-    ("DENS_DEV", "kg/m3", "f8", 8),
-    ("LATITUDE", "°", "f8", 7),
-    ("LONGITUDE", "°", "f8", 8),
-    ("ZENITH_ANGLE", "°", "f8", 8),
-    ("LOCAL_TIME", "h", "f8", 7),
-    ("ERT", "s", "f8", 10),
+    ("WAVELENGTH", "U1", 3, ""),
+    ("ORBIT_NUMBER", "i", 5, ""),
+    ("ALTITUDE", "f8", 7, "km"),
+    ("REFRACTIVITY", "f8", 9, "Nunit"),
+    ("REFRACT_DEV", "f8", 6, "Nunit"),
+    ("TEMPERATURE", "f8", 7, "K"),
+    ("TEMP_DEV", "f8", 6, "K"),
+    ("PRESSURE", "f8", 9, "bar"),
+    ("PRESS_DEV", "f8", 9, "bar"),
+    ("DENSITY", "f8", 8, "kg/m3"),
+    ("DENS_DEV", "f8", 8, "kg/m3"),
+    ("LATITUDE", "f8", 7, "°"),
+    ("LONGITUDE", "f8", 8, "°"),
+    ("ZENITH_ANGLE", "f8", 8, "°"),
+    ("LOCAL_TIME", "f8", 7, "h"),
+    ("ERT", "f8", 10, "s"),
 ]
 """ Data format description of the ``mgn_rtpd.dat`` file """
 STR_CONVERTER = {0: lambda s: s.strip()}
@@ -62,30 +63,10 @@ STR_CONVERTER = {0: lambda s: s.strip()}
 datafolder = res_files(data) / BASEFOLDER
 """ Resolved data folder location """
 # load raw data files
-names_abs, units_abs, formats_abs, widths_abs = zip(*DESC_ABS)
-names_rtpd, units_rtpd, formats_rtpd, widths_rtpd = zip(*DESC_RTPD)
 tables = {
-    "mgn_abs": QTable(
-        np.genfromtxt(
-            datafolder / "mgn_abs.dat",
-            dtype=formats_abs,
-            delimiter=widths_abs,
-            encoding="utf8",
-            converters=STR_CONVERTER,
-        ),
-        names=names_abs,
-        units=units_abs,
-    ),
-    "mgn_rtpd": QTable(
-        np.genfromtxt(
-            datafolder / "mgn_rtpd.dat",
-            dtype=formats_rtpd,
-            delimiter=widths_rtpd,
-            encoding="utf8",
-            converters=STR_CONVERTER,
-        ),
-        names=names_rtpd,
-        units=units_rtpd,
+    "mgn_abs": read_unit_fwf_desc(datafolder / "mgn_abs.dat", DESC_ABS, STR_CONVERTER),
+    "mgn_rtpd": read_unit_fwf_desc(
+        datafolder / "mgn_rtpd.dat", DESC_ABS, STR_CONVERTER
     ),
 }
 """ Loaded tables """

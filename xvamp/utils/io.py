@@ -85,6 +85,29 @@ def read_unit_fwf(
     return QTable(data, names=names, units=units)
 
 
+def read_unit_fwf_desc(
+    path: Path, desc: list[tuple[str, str, str, int]], converters: dict = {}
+) -> QTable:
+    """
+    Wrapper around :func:`~read_unit_fwf` if the names, units, formats, and widths
+    are given in a list of tuples.
+
+    Parameters
+    ----------
+    path
+        Path to the file
+    desc
+        Description as a list, where each entry corresponds to a column in the data
+        and is a tuple with the four entries name, format, width and unit
+    converters
+        Column data converter functions passed on to :func:`~numpy.genfromtxt`
+    """
+    # split up description
+    names, formats, widths, units = zip(*desc)
+    # read file
+    return read_unit_fwf(path, names, formats, widths, units, converters)
+
+
 def write_polarization_parameters(
     polarization_parameters: dict[
         str, HarveyLemmon2005Parameters | Pitzer1983Parameters
