@@ -13,6 +13,7 @@ from astropy.table import QTable
 # package imports
 from .. import data
 from ..utils.io import read_unit_fwf_desc
+from ..profile import Profile
 
 # data location
 BASEFOLDER = "magellan321x"
@@ -105,3 +106,27 @@ def get_wavelength_orbit(
         i_rtpd = np.logical_and(i_rtpd, tables["mgn_rtpd"]["ORBIT_NUMBER"] == orbit)
     # subset data
     return tables["mgn_abs"][i_abs], tables["mgn_rtpd"][i_rtpd]
+
+
+# quick function to get the H2SO4 mixing ratio for X-band
+def _extract_xband_h2so4_profile(orbit: int) -> Tuple[Profile, Profile, Profile]:
+    sub_abs = tables["mgn_abs"][
+        np.logical_and(
+            tables["mgn_abs"]["WAVELENGTH"] == "X",
+            tables["mgn_abs"]["ORBIT_NUMBER"] == orbit,
+        )
+    ]
+    return Profile(
+        index=sub_abs["ALTITUDE"],
+        data=np.clip(sub_abs["H2SO4_VOLMIX"].value, a_min=0, a_max=None),
+        data_unit=sub_abs["H2SO4_VOLMIX"].unit,
+    )
+
+
+# create profiles
+h2so4_mr_x_3212 = _extract_xband_h2so4_profile(3212)
+""" H2SO4 mixing ratio from Magellan orbit 3212 and X-band """
+h2so4_mr_x_3213 = _extract_xband_h2so4_profile(3213)
+""" H2SO4 mixing ratio from Magellan orbit 3213 and X-band """
+h2so4_mr_x_3214 = _extract_xband_h2so4_profile(3214)
+""" H2SO4 mixing ratio from Magellan orbit 3214 and X-band """
