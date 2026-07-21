@@ -8,7 +8,8 @@ from importlib.resources import files as res_files
 
 # package imports
 from .. import data
-from ..utils import read_unit_csv, Profile
+from ..utils.io import read_unit_csv
+from ..profile import Profile
 
 # data location
 BASEFOLDER = "jenkins_et_al_2002"

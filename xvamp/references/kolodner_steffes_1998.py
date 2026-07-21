@@ -12,7 +12,8 @@ from astropy.units import Quantity
 # package imports
 from .. import data
 from ..constants import ESU_CM, SPEC_MOL_M
-from ..utils import read_unit_csv, Profile
+from ..utils.io import read_unit_csv
+from ..profile import Profile
 
 # data location
 BASEFOLDER = "kolodner_steffes_1998"

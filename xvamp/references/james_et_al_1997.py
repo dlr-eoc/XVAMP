@@ -11,7 +11,8 @@ from astropy.table import join
 
 # package imports
 from .. import data
-from ..utils import read_unit_csv, Profile
+from ..utils.io import read_unit_csv
+from ..profile import Profile
 
 # data location
 BASEFOLDER = "james_et_al_1997"

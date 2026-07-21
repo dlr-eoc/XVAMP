@@ -7,7 +7,7 @@ from importlib.resources import files as res_files
 
 # package imports
 from .. import data
-from ..utils import read_unit_fwf
+from ..utils.io import read_unit_fwf
 
 # data location
 BASEFOLDER = "jpl_spectral_lines"

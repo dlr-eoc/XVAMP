@@ -12,7 +12,8 @@ from astropy.table import hstack, vstack
 
 # package imports
 from .. import data
-from ..utils import read_unit_csv, MultiProfile
+from ..utils.io import read_unit_csv
+from ..profile import MultiProfile
 
 # data location
 BASEFOLDER = "keating_et_al_1985"
