@@ -1933,6 +1933,8 @@ class Duan2010(Model):
                     },
                 )
                 interpolators["OCS"] = duan2010figures.get_ocs_old_density
+            case _:
+                raise ValueError(f"Unknown OCS source {use_ocs_from=}")
 
         # done
         return mixratios, interpolators, comp_unit
