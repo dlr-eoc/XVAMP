@@ -8,6 +8,7 @@ from importlib.resources import files as res_files
 # package imports
 from .. import data
 from ..utils.io import read_unit_csv
+from ..profile import Profile
 
 # data location
 BASEFOLDER = "marcq_et_al_2006"
@@ -21,3 +22,9 @@ datafolder = res_files(data) / BASEFOLDER
 # load raw data files
 tables = {t: read_unit_csv(datafolder / f"table{t}.csv") for t in TABLES}
 """ Loaded tables """
+
+# define Profile for OCS
+ocs_mr = Profile(
+    index=tables["fig8"]["altitude"], data=tables["fig8"]["mixing ratio of OCS"]
+)
+""" OCS mixing ratio """
