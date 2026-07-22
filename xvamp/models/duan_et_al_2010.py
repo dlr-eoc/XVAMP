@@ -223,7 +223,6 @@ class Duan2010(Model):
         use_tpd_from: str = "duan",
         use_compressible_gas: bool = True,
         use_keating_temp_press_above100km: bool = False,
-        use_keating_co_co2_n2_above_100km: bool = False,
         use_simple_h2o: bool = False,
         use_simple_so2: bool = False,
         use_simple_co: bool = False,
@@ -262,15 +261,6 @@ class Duan2010(Model):
             Whether to use the temperature profile from :cite:t:`keating1985`
             above 100 km, and get its matching pressure profile from the
             ideal gas law.
-            This option has no effect on the model, since the transition between
-            atmosphere- and ionosphere-dominated permittivity profiles is at 100 km,
-            and the ionosphere is modeled differently. It is only useful if one
-            wants to load these quantities for later plotting.
-        use_keating_co_co2_n2_above_100km
-            Whether to use the :cite:t:`keating1985` mixing ratios for
-            CO, CO2, and N2 as continuation above the :cite:t:`duan2010`
-            profiles (instead of continuing CO2 and N2 upwards as a constant,
-            and setting CO to zero upwards of the highest value).
             This option has no effect on the model, since the transition between
             atmosphere- and ionosphere-dominated permittivity profiles is at 100 km,
             and the ionosphere is modeled differently. It is only useful if one
@@ -394,7 +384,6 @@ class Duan2010(Model):
 
         # get the mixing ratios of the chemical species
         mixratios, comp_interpolators, comp_unit = Duan2010.get_composition(
-            use_keating_co_co2_n2_above_100km=use_keating_co_co2_n2_above_100km,
             use_simple_h2o=use_simple_h2o,
             use_simple_so2=use_simple_so2,
             use_simple_co=use_simple_co,
@@ -991,7 +980,6 @@ class Duan2010(Model):
 
     @staticmethod
     def get_composition(
-        use_keating_co_co2_n2_above_100km: bool = False,
         use_simple_h2o: bool = False,
         use_simple_so2: bool = False,
         use_simple_co: bool = False,
@@ -1004,11 +992,6 @@ class Duan2010(Model):
 
         Parameters
         ----------
-        use_keating_co_co2_n2_above_100km
-            Whether to use the :cite:t:`keating1985` mixing ratios for
-            CO, CO2, and N2 as continuation above the :cite:t:`duan2010`
-            profiles (instead of continuing CO2 and N2 upwards as a constant,
-            and setting CO to zero upwards of the highest value).
         use_simple_h2o
             Define whether to use a simple water vapor profile or not.
         use_simple_so2
@@ -1060,42 +1043,17 @@ class Duan2010(Model):
         interpolators = {}
         comp_unit = Unit("ppm")
 
-        # optional, load data from above 100km
-        if use_keating_co_co2_n2_above_100km:
-            # the components from Keating et al. (1985),
-            # subset to what is actually used
-            highcomps_list = ["CO", "CO2", "N2"]
-            highcomps_df = keating1985.tables["night"][
-                ["ALT"] + highcomps_list + ["NTOT"]
-            ].to_pandas()
-            # now we can convert from number density to ppm
-            highcomps_df.loc[:, highcomps_list] *= (
-                1e6 / highcomps_df["NTOT"].to_numpy()[:, None]
-            )
-            # set altitude as the index
-            highcomps_df.set_index("ALT", inplace=True)
-
         # CO2
-        if use_keating_co_co2_n2_above_100km:
-            mixratios["CO2"] = highcomps_df["CO2"]
-            # set constant value at 100 km to the standard one
-            mixratios["CO2"].iloc[0] = Duan2010.VENUS_STANDARD_CO2.to(comp_unit).value
-        else:
-            mixratios["CO2"] = pd.DataFrame(
-                index=[100.0],
-                data={"CO2": Duan2010.VENUS_STANDARD_CO2.to(comp_unit).value},
-            )
+        mixratios["CO2"] = pd.DataFrame(
+            index=[100.0],
+            data={"CO2": Duan2010.VENUS_STANDARD_CO2.to(comp_unit).value},
+        )
 
         # N2
-        if use_keating_co_co2_n2_above_100km:
-            mixratios["N2"] = highcomps_df["N2"]
-            # set constant value at 100 km to the standard one
-            mixratios["N2"].iloc[0] = Duan2010.VENUS_STANDARD_N2.to(comp_unit).value
-        else:
-            mixratios["N2"] = pd.DataFrame(
-                index=[100.0],
-                data={"N2": Duan2010.VENUS_STANDARD_N2.to(comp_unit).value},
-            )
+        mixratios["N2"] = pd.DataFrame(
+            index=[100.0],
+            data={"N2": Duan2010.VENUS_STANDARD_N2.to(comp_unit).value},
+        )
 
         # AR
         if add_ar:
@@ -1262,19 +1220,11 @@ class Duan2010(Model):
         else:
             co_alt = duan2010figures.CO_FRACTION_NODES[:, 0]
             co_intp = duan2010figures.get_co_density
-        if use_keating_co_co2_n2_above_100km:
-            co_alt = co_alt[co_alt < 100]
-            co_alt = pd.DataFrame(
-                index=co_alt,
-                data={"CO": co_intp(co_alt).to(comp_unit).value},
-            )
-            mixratios["CO"] = pd.concat([co_alt, highcomps_df["CO"]], axis=0)
-        else:
-            mixratios["CO"] = pd.DataFrame(
-                index=co_alt,
-                data={"CO": co_intp(co_alt).to(comp_unit).value},
-            )
-            interpolators["CO"] = co_intp
+        mixratios["CO"] = pd.DataFrame(
+            index=co_alt,
+            data={"CO": co_intp(co_alt).to(comp_unit).value},
+        )
+        interpolators["CO"] = co_intp
 
         # OCS
         match use_ocs_from:
