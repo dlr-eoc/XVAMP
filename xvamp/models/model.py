@@ -19,7 +19,7 @@ from ..utils.parametersets import (
     HarveyLemmon2005Parameters,
     Pitzer1983Parameters,
 )
-from ..reference import seiff1985
+from ..references import seiff_et_al_1985 as seiff1985
 
 
 class Model:
