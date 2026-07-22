@@ -169,3 +169,6 @@ cython_debug/
 # documentation
 docs/
 docsrc/_build
+
+# reference output for local change tracking
+reference_output/

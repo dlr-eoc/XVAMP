@@ -3,6 +3,7 @@ Utility module for the atmospheric model.
 """
 
 # standard imports
+from __future__ import annotations
 import numpy as np
 from dataclasses import dataclass
 from astropy.units import Quantity
@@ -57,6 +58,57 @@ class HarveyLemmon2005Parameters:
         """
         return ((4 * np.pi * AVOGADRO * mu**2) / (9 * BOLTZMANN)).to("cm3 K/mol").value
 
+    def __eq__(self, other: HarveyLemmon2005Parameters | Pitzer1983Parameters):
+        """
+        Check whether two parameter sets are the same.
+
+        Parameters
+        ----------
+        other
+            The other parameter set to check equality with.
+        """
+        if isinstance(other, HarveyLemmon2005Parameters):
+            return np.allclose(
+                [
+                    self.a0,
+                    self.a1,
+                    self.b0,
+                    self.b1,
+                    self.c0,
+                    self.c1,
+                    self.D,
+                    self.T0,
+                    self.A_mu,
+                ],
+                [
+                    other.a0,
+                    other.a1,
+                    other.b0,
+                    other.b1,
+                    other.c0,
+                    other.c1,
+                    other.D,
+                    other.T0,
+                    other.A_mu,
+                ],
+                rtol=1e-14,
+                atol=1e-14,
+            )
+        elif isinstance(other, Pitzer1983Parameters):
+            if not (self.a1 == self.b0 == self.b1 == self.c0 == self.c1 == 0.0):
+                return False
+            other_A_eps = (
+                ((4 * np.pi * AVOGADRO * other.alpha_T) / 3).to("cm3/mol").value
+            )
+            if not np.allclose(self.a0, other_A_eps, rtol=1e-14, atol=1e-14):
+                return False
+            other_A_mu = self.get_A_mu(other.mu)
+            if not np.allclose(self.A_mu, other_A_mu, rtol=1e-14, atol=1e-14):
+                return False
+            return True
+        else:
+            raise NotImplementedError
+
 
 @dataclass
 class Pitzer1983Parameters:
@@ -69,6 +121,38 @@ class Pitzer1983Parameters:
     """ Molecular dipole moment [esu cm = 1e18 D] """
     alpha_T: Quantity["cm3"]
     """ Molecular polarizability [cm^3] """
+
+    def __eq__(self, other: HarveyLemmon2005Parameters | Pitzer1983Parameters):
+        """
+        Check whether two parameter sets are the same.
+
+        Parameters
+        ----------
+        other
+            The other parameter set to check equality with.
+        """
+        if isinstance(other, HarveyLemmon2005Parameters):
+            if not (other.a1 == other.b0 == other.b1 == other.c0 == other.c1 == 0.0):
+                return False
+            self_A_eps = ((4 * np.pi * AVOGADRO * self.alpha_T) / 3).to("cm3/mol").value
+            if not np.allclose(self_A_eps, other.a0, rtol=1e-14, atol=1e-14):
+                return False
+            self_A_mu = self.get_A_mu(other.mu)
+            if not np.allclose(self_A_mu, other.A_mu, rtol=1e-14, atol=1e-14):
+                return False
+            return True
+        elif isinstance(other, Pitzer1983Parameters):
+            return np.allclose(
+                [self.mu.to_value() * 1e18, self.alpha_T.to_value() * 1e24],
+                [
+                    other.mu.to_value(self.mu.unit) * 1e18,
+                    other.alpha_T.to_value(self.alpha_T.unit) * 1e24,
+                ],
+                rtol=1e-14,
+                atol=1e-14,
+            )
+        else:
+            raise NotImplementedError
 
 
 @dataclass
