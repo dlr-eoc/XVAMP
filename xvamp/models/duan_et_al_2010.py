@@ -457,7 +457,7 @@ class Duan2010(Model):
 
         # check if we should recompute them
         if load_polarization_parameters == False:
-            self.polarization_parameters = Duan2010.get_polarization_parameters(
+            self.polarization_parameters = Duan2010.compute_polarization_parameters(
                 add_ar=add_ar,
                 ocs_abspol_from=ocs_abspol_from,
                 use_eps_prime_r_inf=use_eps_prime_r_inf,
@@ -1075,7 +1075,7 @@ class Duan2010(Model):
         return profiles
 
     @staticmethod
-    def get_polarization_parameters(
+    def compute_polarization_parameters(
         add_ar: bool = False,
         ocs_abspol_from: str = "duan",
         use_eps_prime_r_inf: bool = True,

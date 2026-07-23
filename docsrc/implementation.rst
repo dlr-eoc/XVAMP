@@ -268,7 +268,7 @@ approach suggested by the study which provides the necessary experimental data,
 :meth:`~xvamp.reference.KolodnerSteffes1998.get_eps_prime_r_and_molar_density`
 (to derive the mass density and the real part of the relative permittivity of H2SO4)
 and then completed in a general sense in
-:meth:`~xvamp.model.Duan2010.get_polarization_parameters` (to compute the
+:meth:`~xvamp.model.Duan2010.compute_polarization_parameters` (to compute the
 polarization parameters that can then be evaluated at given molar densities and
 temperatures of the atmospheric column).
 
