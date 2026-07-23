@@ -1097,8 +1097,11 @@ class Duan2010(Model):
         # part 4: inter- and extrapolating
 
         # define logarithmic quantities
+        # (OCS and H2SO4 is interpolated linearly otherwise in the code)
         intp_quants = list(interpolators.keys())
-        log_list = [s for s in all_species if s not in intp_quants] + ["pressure"]
+        log_list = [
+            s for s in all_species if s not in intp_quants + ["OCS", "H2SO4"]
+        ] + ["pressure"]
         if use_clouds_from != "none":
             log_list.append(cloud_mass_density.info.name)
         if use_compressible_gas:
@@ -1862,7 +1865,7 @@ class Duan2010(Model):
                 # extract X-band data for the given orbit
                 temp = temp[
                     np.logical_and(
-                        temp["WAVELENGTH"] == "S",
+                        temp["WAVELENGTH"] == "X",
                         temp["ORBIT_NUMBER"] == int(i),
                     )
                 ]

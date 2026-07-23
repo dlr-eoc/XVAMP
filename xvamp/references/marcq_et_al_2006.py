@@ -25,6 +25,7 @@ tables = {t: read_unit_csv(datafolder / f"table{t}.csv") for t in TABLES}
 
 # define Profile for OCS
 ocs_mr = Profile(
-    index=tables["fig8"]["altitude"], data=tables["fig8"]["mixing ratio of OCS"]
+    index=tables["fig8"]["altitude"],
+    data=tables["fig8"]["mixing ratio of OCS"].to("ppm"),
 )
 """ OCS mixing ratio """

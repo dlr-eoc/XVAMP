@@ -395,8 +395,6 @@ class Duan2010(Model):
                     prof_cloud_mass_mixing_ratio.index_to(km),
                 ]
             )
-            self.cloud_df = None
-            self.james = james1997
 
         # part 3: interpolate all physical quantities, mixing ratios, electron density,
         # and cloud profile onto the same altitude levels, ensuring a minimum spacing
@@ -421,6 +419,8 @@ class Duan2010(Model):
         if use_clouds_from != "none":
             self.cloud_concentration = prof_cloud_concentration(self.altitude)
             self.cloud_mass_mixing_ratio = prof_cloud_mass_mixing_ratio(self.altitude)
+        else:
+            self.cloud_mass_mixing_ratio = Quantity(0, u.dimensionless_unscaled)
         # species
         self.molar_fractions = QTable(
             {spec: prof(self.altitude) for spec, prof in dict_prof_species.items()}
@@ -842,19 +842,37 @@ class Duan2010(Model):
         # using the night side to be consistent with the Zasova data below 100 km
         # for 150 km and above
         if use_keating_temp_press_above100km:
-            alt.append(keating1985.tables["night"]["ALT"][1:])
-            temp.append(keating1985.tables["night"]["T"][1:])
-            press.append(keating1985.tables["night"]["P"][1:])
+            alt.extend(
+                [
+                    keating1985.tables["4-15"]["ALT"][-2:0:-1],
+                    keating1985.tables["4-5"]["ALT"],
+                ]
+            )
+            temp.extend(
+                [
+                    keating1985.tables["4-15"]["T"][-2:0:-1],
+                    keating1985.tables["4-5"]["T"],
+                ]
+            )
+            press.extend(
+                [
+                    keating1985.tables["4-15"]["P"][-2:0:-1],
+                    keating1985.tables["4-7"]["P"],
+                ]
+            )
             if use_compressible_gas:
-                dens.append(keating1985.tables["night"]["RHO"][1:])
+                dens.extend(
+                    [
+                        keating1985.tables["4-15"]["RHO"][-2:0:-1],
+                        keating1985.tables["4-5"]["RHO"],
+                    ]
+                )
         # otherwise, we use a previously-fitted extrapolating function for pressure,
         # continue the temperature as a constant, and use the ideal gas law to get
         # mass density
         else:
             extrap_alt_km = np.arange(101, 376)
-            alt.append(
-                Quantity(extrap_alt_km, "km").to(keating1985.tpd_night.index_unit)
-            )
+            alt.append(Quantity(extrap_alt_km, "km"))
             temp.append(
                 Quantity(
                     np.full(
@@ -874,7 +892,7 @@ class Duan2010(Model):
                         * np.exp(Duan2010.EXT_PRESSURE_COEFFS[3] * extrap_alt_km)
                     ),
                     "atm",
-                ).to(keating1985.tpd_night.P.data_unit)
+                )
             )
             if use_compressible_gas:
                 dens.append(press[-1] / (Duan2010.VENUS_GAS_CONSTANT * temp[-1]))
@@ -895,17 +913,19 @@ class Duan2010(Model):
         data = [temperature, pressure]
         data_names = ["temperature", "pressure"]
         log_list = [False, True]
+        upper_list = [None, np.nan]
         if use_compressible_gas:
             data.append(mass_density)
             data_names.append("mass_density")
             log_list.append(True)
+            upper_list.append(np.nan)
         # convert everything
         tpd = MultiProfile(
             index=altitude,
             data=QTable(data, names=data_names),
             log=log_list,
             lower=np.nan,
-            upper=np.nan,
+            upper=upper_list,
         )
 
         # done
@@ -992,7 +1012,7 @@ class Duan2010(Model):
             profiles["AR"] = Profile(
                 index=0.0,
                 index_unit="km",
-                data=Duan2010.MR_AR,
+                data=Duan2010.MR_AR.to("ppm"),
                 lower=None,
                 upper=None,
             )
@@ -1157,10 +1177,7 @@ class Duan2010(Model):
 
         # section 2.1.4.3: H2SO4 (gaseous)
         # get Pnu from the experiment of Kolodner and Steffes (1998)
-        eps_prime_r_h2so4, rho_h2so4 = (
-            kolodnersteffes1998.get_eps_prime_r_and_molar_density()
-        )
-        Pnu_H2SO4 = Duan2010.eq3(eps_prime_r_h2so4)
+        Pnu_H2SO4 = Duan2010.eq3(kolodnersteffes1998.eps_prime_r_h2so4)
         if use_virial_approximation:
             # get virial expansion terms
             A_mu_H2SO4 = float(
@@ -1168,7 +1185,10 @@ class Duan2010(Model):
             )
             A_epsilon_H2SO4 = float(
                 Duan2010.A_epsilon_from_eq8(
-                    Pnu_H2SO4, A_mu_H2SO4, rho_h2so4, kolodnersteffes1998.T_H2SO4
+                    Pnu_H2SO4,
+                    A_mu_H2SO4,
+                    kolodnersteffes1998.rho_h2so4,
+                    kolodnersteffes1998.T_H2SO4,
                 )
             )
             # define Harvey & Lemmon parameter set
@@ -1178,7 +1198,7 @@ class Duan2010(Model):
         else:
             # get molecular polarizability
             alpha_T_H2SO4 = Duan2010.alpha_T_from_eq14(
-                rho_h2so4,
+                kolodnersteffes1998.rho_h2so4,
                 kolodnersteffes1998.T_H2SO4,
                 Pnu_H2SO4,
                 kolodnersteffes1998.MU_H2SO4,
@@ -1418,18 +1438,20 @@ class Duan2010(Model):
                     duan2010figures.tables["4"]["Density"].unit,
                 )
                 # calculate the spreading ratio
-                eta_s = (d_concentr_H2SO4 / self.cloud_mass_density).decompose()
+                # (inverse actually to avoid divide by zero)
+                eta_s_inv = (self.cloud_mass_density / d_concentr_H2SO4).decompose()
                 # convert it to polarization
                 P_concentr_H2SO4_H2O = Duan2010.eq3(eps_prime_r_H2SO4_H2O)
                 # and finally calculate the polarization of the distributed solution
-                P_distr_H2SO4_H2O = P_concentr_H2SO4_H2O / eta_s
+                P_distr_H2SO4_H2O = P_concentr_H2SO4_H2O * eta_s_inv
                 # since eta_s is the inverse of the volume fraction, the computed
                 # polarization already accounts for its density in the atmosphere
                 cloud_pol = P_distr_H2SO4_H2O
                 # convert the relative permittivity to absorption
                 # follow section 2.2.5
                 cloud_absorp = (
-                    Duan2010.eq25(eps_prime_r_H2SO4_H2O, eps_dprime_r_H2SO4_H2O) / eta_s
+                    Duan2010.eq25(eps_prime_r_H2SO4_H2O, eps_dprime_r_H2SO4_H2O)
+                    * eta_s_inv
                 )
         # done
         return np.nan_to_num(cloud_pol), np.nan_to_num(cloud_absorp)
