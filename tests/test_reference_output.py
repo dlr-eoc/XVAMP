@@ -42,6 +42,7 @@ def compare_quantities(actual: Quantity, desired: Quantity, name: str):
         desired.to_value(),
         rtol=1e-14,
         atol=1e-14,
+        err_msg=f"Mismatched {name}",
     )
     if actual.unit != desired.unit:
         warn(f"{name}: actual unit {actual.unit} != {desired.unit}")
@@ -106,8 +107,8 @@ class TestDuan2010(unittest.TestCase):
         # all parameters in the model should match the packaged ones,
         # and enforce that they are the same
         self.assertEqual(
-            set(list(self._model.polarization_parameters)),
-            set(list(self._polarization_parameters)),
+            set(self._model.polarization_parameters.keys()),
+            set(self._polarization_parameters.keys()),
         )
         for species, pp in self._model.polarization_parameters.items():
             with self.subTest(f"species {species}"):
