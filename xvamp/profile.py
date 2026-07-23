@@ -209,6 +209,40 @@ class Profile:
         # cast as Quantity and return
         return Quantity(out, self.data_unit)
 
+    @property
+    def index_as_quantity(self) -> Quantity:
+        """Return the index as a :class:`~astropy.unit.Quantity`."""
+        return Quantity(self.index, self.index_unit)
+
+    def index_to(self, unit: Unit | str | None = None) -> NDArray[np.floating]:
+        """
+        Return the index as as an array in a given unit.
+
+        Parameters
+        ----------
+        unit
+            If not a string or :class:`astropy.unit.Unit`, the :attr:`~index_unit`
+            is assumed.
+        """
+        return self.index_as_quantity.to_value(unit)
+
+    @property
+    def as_quantity(self) -> Quantity:
+        """Return the data as a :class:`~astropy.unit.Quantity`."""
+        return Quantity(self.data, self.data_unit)
+
+    def to(self, unit: Unit | str | None = None) -> NDArray[np.floating]:
+        """
+        Return the data as as an array in a given unit.
+
+        Parameters
+        ----------
+        unit
+            If not a string or :class:`astropy.unit.Unit`, the :attr:`~data_unit`
+            is assumed.
+        """
+        return self.as_quantity.to_value(unit)
+
 
 class MultiProfile:
 
@@ -228,7 +262,7 @@ class MultiProfile:
         data_units: List[Unit] | Unit | str | None = None,
         data_names: List[str] | None = None,
         scales: List[float] | float = 1.0,
-        log: List[bool] = False,
+        log: List[bool] | bool = False,
         lower: List[float] | float | None = 0.0,
         upper: List[float] | float | None = 0.0,
     ):
@@ -451,3 +485,20 @@ class MultiProfile:
             to the individual subprofiles as ordered in :attr:`data_names`
         """
         return QTable(data={n: getattr(self, n)(new_index) for n in self.data_names})
+
+    @property
+    def index_as_quantity(self) -> Quantity:
+        """Return the index as a :class:`~astropy.unit.Quantity`."""
+        return Quantity(self.index, self.index_unit)
+
+    def index_to(self, unit: Unit | str | None = None) -> NDArray[np.floating]:
+        """
+        Return the index as as an array in a given unit.
+
+        Parameters
+        ----------
+        unit
+            If not a string or :class:`astropy.unit.Unit`, the :attr:`~index_unit`
+            is assumed.
+        """
+        return self.index_as_quantity.to_value(unit)
