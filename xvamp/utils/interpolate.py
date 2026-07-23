@@ -7,8 +7,13 @@ import numpy as np
 from dataclasses import dataclass, field
 from numpy.typing import NDArray
 from pandas import DataFrame
+from warnings import deprecated
 
 
+@deprecated(
+    "'utils.interpolate.fill_df' will be removed as it is no longer needed",
+    category=FutureWarning,
+)
 def fill_df(
     df: DataFrame,
     interpolators: dict = {},
