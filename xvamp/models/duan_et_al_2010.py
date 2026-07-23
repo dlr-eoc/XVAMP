@@ -5,23 +5,18 @@ and returns permittivity.
 
 # standard imports
 import numpy as np
-import pandas as pd
 import astropy.units as u
 import astropy.table as astrotable
 from warnings import warn
 from pathlib import Path
 from typing import Tuple
-from collections.abc import Callable
 from astropy.units import Quantity, Unit
-from numpy.typing import NDArray
-from numpy.polynomial import Polynomial
-from scipy.integrate import cumulative_trapezoid
+from astropy.table import QTable
 
 # package imports
 from ..constants import *
 from ..utils import float_or_array
-from ..utils.interpolate import fill_df
-from ..geometry import geometry_from_central_angle
+from ..profile import Profile, MultiProfile
 from ..utils.io import read_polarization_parameters
 from ..utils.parametersets import (
     HarveyLemmon2005Parameters,
@@ -360,30 +355,22 @@ class Duan2010(Model):
             Minimum height spacing between altitude nodes.
         """
 
-        # keep track of interpolators and units
-        interpolators = {}
-        units = {}
-
         # part 1: physical quantities
 
-        # temperature and pressure
-        altitude, temperature, pressure, mass_density = Duan2010.get_tpd(
+        # temperature, pressure and optionally density
+        prof_tpd = Duan2010.get_tpd(
             use_tpd_from=use_tpd_from,
             use_compressible_gas=use_compressible_gas,
             use_keating_temp_press_above100km=use_keating_temp_press_above100km,
         )
-        atpd = [altitude, temperature, pressure] + (
-            [mass_density] if use_compressible_gas else []
-        )
-        # join the tables as a pandas DataFrame so we can interpolate easier
-        physquant_df = astrotable.hstack(atpd).to_pandas(index="altitude")
-        # save units
-        units |= {qt.info.name: qt.unit for qt in atpd}
+        # start collecting altitude levels [km]
+        km = Unit("km")
+        _joint_alt = [prof_tpd.index_to(km)]
 
         # part 2: compositional profiles
 
         # get the mixing ratios of the chemical species
-        mixratios, comp_interpolators, comp_unit = Duan2010.get_composition(
+        dict_prof_species = Duan2010.get_composition(
             use_simple_h2o=use_simple_h2o,
             use_simple_so2=use_simple_so2,
             use_simple_co=use_simple_co,
@@ -391,124 +378,62 @@ class Duan2010(Model):
             use_ocs_from=use_ocs_from,
             add_ar=add_ar,
         )
-        # keep track of the chemical species we added
-        all_species = list(mixratios.keys())
-        # save interpolators and units
-        interpolators |= comp_interpolators
-        units |= {comp: comp_unit for comp in mixratios.keys()}
+        # track their altitude levels
+        _joint_alt.extend([p.index_to(km) for p in dict_prof_species.values()])
 
         # get the electron density
-        el_altitude, el_density, el_interpolator = Duan2010.get_electrons()
-        # make electron dataframe for later merging
-        el_df = pd.DataFrame(
-            index=el_altitude.to("km").value,
-            data={el_density.info.name: el_density.value},
-        )
-        # save interpolators and units
-        interpolators |= {el_density.info.name: el_interpolator}
-        units |= {el_density.info.name: el_density.unit}
+        prof_electrons = duan2010figures.electron_density
+        _joint_alt.append(prof_electrons.index_to(km))
 
-        # get cloud values
+        # get cloud profiles
         if use_clouds_from != "none":
-            cloud_altitude, cloud_mass_density, cloud_concentration = (
-                Duan2010.get_clouds(
-                    altitude=altitude, temperature=temperature, pressure=pressure
-                )
+            prof_cloud_concentration = james1997.cloud_concentration
+            prof_cloud_mass_mixing_ratio = james1997.cloud_mass_mixing_ratio
+            _joint_alt.extend(
+                [
+                    prof_cloud_concentration.index_to("km"),
+                    prof_cloud_mass_mixing_ratio.index_to(km),
+                ]
             )
-            # make cloud dataframe for later merging
-            cloud_df = pd.DataFrame(
-                index=cloud_altitude.to("km").value,
-                data={
-                    cloud_mass_density.info.name: cloud_mass_density.value,
-                    cloud_concentration.info.name: cloud_concentration.value,
-                },
-            )
-            # save units
-            units |= {
-                cloud_mass_density.info.name: cloud_mass_density.unit,
-                cloud_concentration.info.name: cloud_concentration.unit,
-            }
+            self.cloud_df = None
+            self.james = james1997
 
-        # part 3: combine all physical quantities, mixing ratios, electron density,
-        # and cloud profile, ensuring a minimum spacing of altitude values
+        # part 3: interpolate all physical quantities, mixing ratios, electron density,
+        # and cloud profile onto the same altitude levels, ensuring a minimum spacing
+        # of altitude values
 
-        # initialize empty DataFrame
+        # get joint altitude levels, ensuring a minimum spacing
         min_alt_spacing_km = min_altitude_spacing.to("km").value
-        bigdf = pd.DataFrame(
-            index=np.arange(
-                -7, 375 + min_alt_spacing_km / 2, min_alt_spacing_km, dtype=float
-            )
+        _joint_alt.append(
+            np.arange(-7, 375 + min_alt_spacing_km / 2, min_alt_spacing_km, dtype=float)
         )
-        bigdf.index.rename("altitude", inplace=True)
-        # merge with physical quantities
-        bigdf = physquant_df.merge(
-            bigdf, how="outer", left_index=True, right_index=True
-        )
-        # merge with mixing ratios
-        for temp in mixratios.values():
-            bigdf = bigdf.merge(temp, how="outer", left_index=True, right_index=True)
-        # merge with electron density
-        bigdf = bigdf.merge(el_df, how="outer", left_index=True, right_index=True)
-        # merge with cloud quantities
-        if use_clouds_from != "none":
-            bigdf = bigdf.merge(
-                cloud_df, how="outer", left_index=True, right_index=True
-            )
+        self.altitude = Quantity(np.unique(np.concatenate(_joint_alt)), km)
 
-        # part 4: inter- and extrapolating
-
-        # define logarithmic quantities
-        intp_quants = list(interpolators.keys())
-        log_list = [s for s in all_species if s not in intp_quants] + ["pressure"]
-        if use_clouds_from != "none":
-            log_list.append(cloud_mass_density.info.name)
+        # evaluate all Profiles
+        # temperature, pressure, and density
+        self.temperature = prof_tpd.temperature(self.altitude)
+        self.pressure = prof_tpd.pressure(self.altitude)
         if use_compressible_gas:
-            log_list.append("mass density")
-        # define extrapolating behavior
-        ffill_list = ["temperature", "CO2", "N2"]
-        bfill_list = ["CO2", "N2", "SO2", "CO"]
-        if add_ar:
-            ffill_list.append("AR")
-            bfill_list.append("AR")
-        zero_list = all_species + ["electron density"]
-        # run interpolator
-        bigdf = fill_df(
-            bigdf,
-            interpolators=interpolators,
-            log_list=log_list,
-            ffill_list=ffill_list,
-            bfill_list=bfill_list,
-            zero_list=zero_list,
-        )
-        # convert back to a QTable
-        bigdf.reset_index(names="altitude", inplace=True)
-        bigqt = astrotable.QTable.from_pandas(bigdf, units=units)
-
-        # part 5: reformatting for readability
-
-        # split up the table into the different types of values
-        # general atmospheric properties
-        self.altitude = bigqt[altitude.info.name]
-        self.temperature = bigqt[temperature.info.name]
-        self.pressure = bigqt[pressure.info.name]
-        if use_compressible_gas:
-            self.mass_density = bigqt[mass_density.info.name]
-        # mixture quantities
-        self.electron_density = bigqt[el_density.info.name]
-        # component quantities
-        self.molar_fractions = bigqt[all_species]
-        # cloud quantities
+            self.mass_density = prof_tpd.mass_density(self.altitude)
+        # electrons
+        self.electron_density = prof_electrons(self.altitude)
+        # clouds
         if use_clouds_from != "none":
-            self.cloud_mass_density = bigqt[cloud_mass_density.info.name]
-            self.cloud_concentration = bigqt[cloud_concentration.info.name]
+            self.cloud_concentration = prof_cloud_concentration(self.altitude)
+            self.cloud_mass_mixing_ratio = prof_cloud_mass_mixing_ratio(self.altitude)
+        # species
+        self.molar_fractions = QTable(
+            {spec: prof(self.altitude) for spec, prof in dict_prof_species.items()}
+        )
 
-        # part 6: computation of total and per-species densities
+        # part 4: computation of total and per-species densities
 
         self.update_densities()
         # sets self.mass_density (if not already present), self.number_density,
-        # self.molar_density, and self.[molar_densities,mass_densities]
+        # self.molar_density, self.[molar_densities,mass_densities], and
+        # self.cloud_mass_density
 
-        # part 7: get individual contributions to polarization and absorption
+        # part 5: get individual contributions to polarization and absorption
         # for each species and the clouds in the atmosphere, as well as the
         # resulting real part of the relative permittivity
 
@@ -555,12 +480,12 @@ class Duan2010(Model):
         )
         # sets self.polarization[s], self.absorption[s], and self.eps_prime_r_atmo
 
-        # part 8: ionosphere
+        # part 6: ionosphere
 
         self.update_ionosphere()
         # sets self.eps_prime_r_iono
 
-        # part 9: combine all contributions
+        # part 7: combine all contributions
 
         self.update_rel_perm_refraction()
         # sets self.relative_permittivity and self.refraction
@@ -571,17 +496,20 @@ class Duan2010(Model):
         """
         Compute the total and specific mass, number, and molar densities
         from the total pressure and temperature, and the molar fractions.
+        Also computes the cloud mass density from the atmospheric profile
+        and the cloud concentration and mass mixing ratio.
         If the mass density has not been set yet, it is derived from the
         ideal gas law.
 
         Notes
         -----
         Reads: :attr:`~Model.pressure`, :attr:`~Model.temperature`,
-        :attr:`~Model.molar_fractions`
+        :attr:`~Model.molar_fractions`, and :attr:`~Model.cloud_mass_mixing_ratio`
 
         Writes: :attr:`~Model.number_density`, :attr:`~Model.mass_densities`,
-        :attr:`~Model.molar_density`, :attr:`~Model.molar_densities`, and
-        (if not already present) :attr:`~Model.mass_density`
+        :attr:`~Model.molar_density`, :attr:`~Model.molar_densities`,
+        :attr:`~Model.cloud_mass_density` and (if not already present)
+        :attr:`~Model.mass_density`
         """
 
         # total densities
@@ -626,6 +554,11 @@ class Duan2010(Model):
             # save results
             self.molar_densities = molar_densities
             self.mass_densities = mass_densities
+
+        # cloud density
+        self.cloud_mass_density = (
+            self.cloud_mass_mixing_ratio * self.mass_density
+        ).decompose()
 
         # done
 
@@ -777,12 +710,7 @@ class Duan2010(Model):
         use_tpd_from: str = "duan",
         use_compressible_gas: bool = True,
         use_keating_temp_press_above100km: bool = False,
-    ) -> Tuple[
-        Quantity["length"],
-        Quantity["temperature"],
-        Quantity["pressure"],
-        Quantity["mass density"] | None,
-    ]:
+    ) -> MultiProfile:
         """
         Build the temperature, pressure, and mass density profiles.
 
@@ -806,14 +734,9 @@ class Duan2010(Model):
 
         Returns
         -------
-        altitude
-            Altitude levels
-        temperature
-            Temperature profile
-        pressure
-            Pressure profile
-        mass_density
-            Mass density profile (only if ``use_compressible_gas=True``)
+            :class:`~xvamp.profile.Multiprofile` with altitude as the index and
+            temperature and pressure as data columns. If ``use_compressible_gas=True``,
+            also has the mass density as a data column.
         """
 
         # start with the basic profile from Seiff et al. (1985) for the deep atmosphere
@@ -858,8 +781,8 @@ class Duan2010(Model):
                         zasova2006.tables["5"]["Ls = 200°-270°, P"][::-1],
                     ]
                 )
-                # interpolate the pressure levels of Zasova et al. (2006) onto compressible
-                # density profile from Seiff et al. (1985)
+                # interpolate the pressure levels of Zasova et al. (2006) onto
+                # compressible density profile from Seiff et al. (1985)
                 if use_compressible_gas:
                     dens.extend(
                         [
@@ -930,9 +853,7 @@ class Duan2010(Model):
         else:
             extrap_alt_km = np.arange(101, 376)
             alt.append(
-                Quantity(extrap_alt_km, "km").to(
-                    keating1985.tables["night"]["ALT"].unit
-                )
+                Quantity(extrap_alt_km, "km").to(keating1985.tpd_night.index_unit)
             )
             temp.append(
                 Quantity(
@@ -953,30 +874,42 @@ class Duan2010(Model):
                         * np.exp(Duan2010.EXT_PRESSURE_COEFFS[3] * extrap_alt_km)
                     ),
                     "atm",
-                ).to(keating1985.tables["night"]["P"].unit)
+                ).to(keating1985.tpd_night.P.data_unit)
             )
             if use_compressible_gas:
                 dens.append(press[-1] / (Duan2010.VENUS_GAS_CONSTANT * temp[-1]))
 
-        # combine
+        # combine into MultiProfile
+        # concatenate all profiles
         altitude = np.concatenate(alt)
         temperature = np.concatenate(temp)
         pressure = np.concatenate(press)
-
-        # set table names for easier joining
-        altitude.info.name = "altitude"
-        temperature.info.name = "temperature"
-        pressure.info.name = "pressure"
-
-        # repeat for mass density if we extracted it
+        # convert pressure into log space since that's where we want it to be
+        # interpolated
+        with np.errstate(invalid="raise"):
+            pressure = Quantity(np.log10(pressure.value), pressure.unit)
+            if use_compressible_gas:
+                mass_density = np.concatenate(dens)
+                mass_density = Quantity(np.log10(mass_density.value), mass_density.unit)
+        # combine all the data columns
+        data = [temperature, pressure]
+        data_names = ["temperature", "pressure"]
+        log_list = [False, True]
         if use_compressible_gas:
-            mass_density = np.concatenate(dens)
-            mass_density.info.name = "mass density"
-        else:
-            mass_density = None
+            data.append(mass_density)
+            data_names.append("mass_density")
+            log_list.append(True)
+        # convert everything
+        tpd = MultiProfile(
+            index=altitude,
+            data=QTable(data, names=data_names),
+            log=log_list,
+            lower=np.nan,
+            upper=np.nan,
+        )
 
         # done
-        return altitude, temperature, pressure, mass_density
+        return tpd
 
     @staticmethod
     def get_composition(
@@ -986,7 +919,7 @@ class Duan2010(Model):
         use_h2so4_from: str = "duan",
         use_ocs_from: str = "duan",
         add_ar: bool = False,
-    ) -> Tuple[dict[str, pd.DataFrame], dict[str, Callable], Unit]:
+    ) -> dict[str, Profile]:
         """
         Load the compositions for the different chemical species.
 
@@ -1030,350 +963,96 @@ class Duan2010(Model):
 
         Returns
         -------
-        mixratios
-            Dictionary of all mixing ratios as :class:`~pandas.DataFrame`
-        interpolators
-            Dictionary of matching generating functions for all species
-        comp_unit
-            Unit of all mixing ratios
+            Dictionary of all mixing ratios as :class:`~xvamp.profile.Profile`s
         """
 
         # initialize
-        mixratios = {}
-        interpolators = {}
-        comp_unit = Unit("ppm")
+        profiles = {}
 
         # CO2
-        mixratios["CO2"] = pd.DataFrame(
-            index=[100.0],
-            data={"CO2": Duan2010.VENUS_STANDARD_CO2.to(comp_unit).value},
+        profiles["CO2"] = Profile(
+            index=0.0,
+            index_unit="km",
+            data=Duan2010.VENUS_STANDARD_CO2.to("ppm"),
+            lower=None,
+            upper=None,
         )
 
         # N2
-        mixratios["N2"] = pd.DataFrame(
-            index=[100.0],
-            data={"N2": Duan2010.VENUS_STANDARD_N2.to(comp_unit).value},
+        profiles["N2"] = Profile(
+            index=0.0,
+            index_unit="km",
+            data=Duan2010.VENUS_STANDARD_N2.to("ppm"),
+            lower=None,
+            upper=None,
         )
 
         # AR
         if add_ar:
-            mixratios["AR"] = pd.DataFrame(
-                index=[100.0],
-                data={"AR": Duan2010.MR_AR.to(comp_unit).value},
+            profiles["AR"] = Profile(
+                index=0.0,
+                index_unit="km",
+                data=Duan2010.MR_AR,
+                lower=None,
+                upper=None,
             )
 
         # H2O
         if use_simple_h2o:
-            mixratios["H2O"] = pd.DataFrame(
-                index=duan2010figures.H2O_OLD_FRACTION_NODES[:, 0],
-                data={
-                    "H2O": duan2010figures.get_h2o_old_density(
-                        duan2010figures.H2O_OLD_FRACTION_NODES[:, 0]
-                    )
-                    .to(comp_unit)
-                    .value
-                },
-            )
-            interpolators["H2O"] = duan2010figures.get_h2o_old_density
+            profiles["H2O"] = duan2010figures.h2o_old_molar_fraction
         else:
-            mixratios["H2O"] = pd.DataFrame(
-                index=duan2010figures.H2O_FRACTION_NODES[:, 0],
-                data={
-                    "H2O": duan2010figures.get_h2o_density(
-                        duan2010figures.H2O_FRACTION_NODES[:, 0]
-                    )
-                    .to(comp_unit)
-                    .value
-                },
-            )
-            interpolators["H2O"] = duan2010figures.get_h2o_density
+            profiles["H2O"] = duan2010figures.h2o_molar_fraction
 
         # SO2
         if use_simple_so2:
-            mixratios["SO2"] = pd.DataFrame(
-                index=duan2010figures.SO2_OLD_FRACTION_NODES[:, 0],
-                data={
-                    "SO2": duan2010figures.get_so2_old_density(
-                        duan2010figures.SO2_OLD_FRACTION_NODES[:, 0]
-                    )
-                    .to(comp_unit)
-                    .value
-                },
-            )
-            interpolators["SO2"] = duan2010figures.get_so2_old_density
+            profiles["SO2"] = duan2010figures.so2_old_molar_fraction
         else:
-            mixratios["SO2"] = pd.DataFrame(
-                index=duan2010figures.SO2_FRACTION_NODES[:, 0],
-                data={
-                    "SO2": duan2010figures.get_so2_density(
-                        duan2010figures.SO2_FRACTION_NODES[:, 0]
-                    )
-                    .to(comp_unit)
-                    .value
-                },
-            )
-            interpolators["SO2"] = duan2010figures.get_so2_density
+            profiles["SO2"] = duan2010figures.so2_molar_fraction
 
         # H2SO4
         match use_h2so4_from.split(":"):
             case ["duan"]:
                 # use the default profile
-                mixratios["H2SO4"] = pd.DataFrame(
-                    index=duan2010figures.H2SO4_FRACTION_NODES[:, 0],
-                    data={
-                        "H2SO4": duan2010figures.get_h2so4_density(
-                            duan2010figures.H2SO4_FRACTION_NODES[:, 0]
-                        )
-                        .to(comp_unit)
-                        .value
-                    },
-                )
-                interpolators["H2SO4"] = duan2010figures.get_h2so4_density
+                profiles["H2SO4"] = duan2010figures.h2so4_molar_fraction
             case ["duan", "3212"]:
                 # use the modified Magellan orbit 3212 profile
-                mixratios["H2SO4"] = pd.DataFrame(
-                    index=duan2010figures.H2SO4_3212_FRACTION_NODES[:, 0],
-                    data={
-                        "H2SO4": duan2010figures.get_h2so4_3212_density(
-                            duan2010figures.H2SO4_3212_FRACTION_NODES[:, 0]
-                        )
-                        .to(comp_unit)
-                        .value
-                    },
-                )
-                interpolators["H2SO4"] = duan2010figures.get_h2so4_3212_density
+                profiles["H2SO4"] = duan2010figures.h2so4_3212_molar_fraction
             case ["kolodner"]:
                 # use the average profiles from Kolodner & Steffes
-                h2so4_alt = (
-                    kolodnersteffes1998.tables["H2SO4 X-band"]["altitude"]
-                    .to("km")
-                    .value
-                )
-                h2so4_mr = (
-                    kolodnersteffes1998.tables["H2SO4 X-band"]["mixing ratio of H2SO4"]
-                    .to(comp_unit)
-                    .value
-                )
-                # save
-                mixratios["H2SO4"] = pd.DataFrame(
-                    index=h2so4_alt, data={"H2SO4": h2so4_mr}
-                )
+                profiles["H2SO4"] = kolodnersteffes1998.h2so4_mr_mean
             case ["kolodner", i] if int(i) in [3212, 3213, 3214]:
                 # use the individual profiles from Kolodner & Steffes
-                h2so4_alt = (
-                    kolodnersteffes1998.tables["fig789"]["altitude"].to("km").value
-                )
-                h2so4_mr = np.clip(
-                    kolodnersteffes1998.tables["fig789"][i].to(comp_unit).value,
-                    a_min=0,
-                    a_max=None,
-                )
-                # save
-                mixratios["H2SO4"] = pd.DataFrame(
-                    index=h2so4_alt, data={"H2SO4": h2so4_mr}
-                )
+                profiles["H2SO4"] = getattr(kolodnersteffes1998, f"h2so4_mr_{i}")
             case ["jenkins", x] if int(x) in range(0, 250, 50):
                 # use one of the reprocessed profiles from Jenkins et al. 2002
-                h2so4_alt = (
-                    jenkins2002.tables[f"{x} ppm SO2"]["altitude"].to("km").value
-                )
-                h2so4_mr = (
-                    jenkins2002.tables[f"{x} ppm SO2"]["mixing ratio of H2SO4"]
-                    .to(comp_unit)
-                    .value
-                )
-                # save
-                mixratios["H2SO4"] = pd.DataFrame(
-                    index=h2so4_alt, data={"H2SO4": h2so4_mr}
+                profiles["H2SO4"] = getattr(
+                    jenkins2002, f"h2so4_molar_fraction_{x}ppm_so2"
                 )
             case ["orbit", i] if int(i) in [3212, 3213, 3214]:
                 # use a specific orbit from Magellan's original dataset
-                temp = magellan321x.tables["mgn_abs"]
-                # extract X-band data for the given orbit
-                temp = temp[
-                    np.logical_and(
-                        temp["WAVELENGTH"] == "X",
-                        temp["ORBIT_NUMBER"] == int(i),
-                    )
-                ]
-                if len(temp) == 0:
-                    raise ValueError(
-                        f"The Magellan orbit {use_h2so4_from} seems "
-                        "to not produce any H2SO4 profile."
-                    )
-                # convert to altitude-indexed mixing ratio
-                h2so4_alt = temp["ALTITUDE"].to("km").value
-                h2so4_mr = np.clip(
-                    temp["H2SO4_VOLMIX"].to(comp_unit).value, a_min=0, a_max=None
-                )
-                # save
-                mixratios["H2SO4"] = pd.DataFrame(
-                    index=h2so4_alt, data={"H2SO4": h2so4_mr}
-                )
+                profiles["H2SO4"] = getattr(magellan321x, f"h2so4_mr_x_{i}")
             case _:
                 raise ValueError(f"Unknown H2SO4 source {use_h2so4_from=}")
 
         # CO
         if use_simple_co:
-            co_alt = duan2010figures.CO_OLD_FRACTION_NODES[:, 0]
-            co_intp = duan2010figures.get_co_old_density
+            profiles["CO"] = duan2010figures.co_old_molar_fraction
         else:
-            co_alt = duan2010figures.CO_FRACTION_NODES[:, 0]
-            co_intp = duan2010figures.get_co_density
-        mixratios["CO"] = pd.DataFrame(
-            index=co_alt,
-            data={"CO": co_intp(co_alt).to(comp_unit).value},
-        )
-        interpolators["CO"] = co_intp
+            profiles["CO"] = duan2010figures.co_molar_fraction
 
         # OCS
         match use_ocs_from:
             case "marcq":
-                mixratios["OCS"] = marcq2006.tables["fig8"].to_pandas(index="altitude")
-                mixratios["OCS"].rename(
-                    columns={mixratios["OCS"].columns[0]: "OCS"}, inplace=True
-                )
-                mixratios["OCS"] *= 1e6
+                profiles["OCS"] = marcq2006.ocs_mr
             case "duan":
-                mixratios["OCS"] = pd.DataFrame(
-                    index=duan2010figures.OCS_FRACTION_NODES[:, 0],
-                    data={
-                        "OCS": duan2010figures.get_ocs_density(
-                            duan2010figures.OCS_FRACTION_NODES[:, 0]
-                        )
-                        .to(comp_unit)
-                        .value
-                    },
-                )
-                interpolators["OCS"] = duan2010figures.get_ocs_density
+                profiles["OCS"] = duan2010figures.ocs_molar_fraction
             case "simple":
-                mixratios["OCS"] = pd.DataFrame(
-                    index=duan2010figures.OCS_OLD_FRACTION_NODES[:, 0],
-                    data={
-                        "OCS": duan2010figures.get_ocs_old_density(
-                            duan2010figures.OCS_OLD_FRACTION_NODES[:, 0]
-                        )
-                        .to(comp_unit)
-                        .value
-                    },
-                )
-                interpolators["OCS"] = duan2010figures.get_ocs_old_density
+                profiles["OCS"] = duan2010figures.ocs_old_molar_fraction
             case _:
                 raise ValueError(f"Unknown OCS source {use_ocs_from=}")
 
         # done
-        return mixratios, interpolators, comp_unit
-
-    @staticmethod
-    def get_electrons() -> (
-        Tuple[Quantity["length"], Quantity["number density"], Callable]
-    ):
-        """
-        Return the default electron density profile as given by Fig. 6a (blue line).
-
-        Returns
-        -------
-        el_altitude
-            Altitude levels at which the electron density is defined
-        el_density
-            Electron number density
-        el_interpolator
-            Interpolating function for the electron number density
-        """
-        # default altitudes
-        el_altitude = Quantity(duan2010figures.ELECTRON_DENSITY_NODES[:, 0], "km")
-        # generating (interpolating) function
-        el_interpolator = duan2010figures.get_electron_density
-        # call function
-        el_density = el_interpolator(duan2010figures.ELECTRON_DENSITY_NODES[:, 0])
-        # set table names for easier joining
-        el_density.info.name = "altitude"
-        el_density.info.name = "electron density"
-        # done
-        return el_altitude, el_density, el_interpolator
-
-    @staticmethod
-    def get_clouds(
-        altitude: Quantity["length"],
-        temperature: Quantity["temperature"],
-        pressure: Quantity["pressure"],
-    ) -> Tuple[Quantity["length"], Quantity["mass density"], Quantity["%"]]:
-        """
-        Compute the cloud mass density and concentration following Section 2.1.5.
-
-        Parameters
-        ----------
-        altitude
-            Altitude levels
-        temperature
-            Temperature profile
-        pressure
-            Pressure profile
-
-        Returns
-        -------
-        cloud_altitude
-            Altitude levels at which the cloud profile is defined
-        cloud_mass_density
-            Cloud mass density profile
-        cloud_concentration
-            Cloud concentration profile
-        """
-
-        # get cloud altitudes from reference
-        cloud_altitude = james1997.tables["clouds"]["altitude"]
-        # extract pressure and temperature from the main profile
-        # onto these altitudes
-        cloud_pressure = Quantity(
-            np.interp(
-                cloud_altitude.to("km").value,
-                altitude.to("km").value,
-                pressure.to("bar").value,
-                left=np.nan,
-                right=np.nan,
-            ),
-            "bar",
-        )
-        cloud_temperature = Quantity(
-            np.interp(
-                cloud_altitude.to("km").value,
-                altitude.to("km").value,
-                temperature.to("K").value,
-                left=np.nan,
-                right=np.nan,
-            ),
-            "K",
-        )
-        # calculate mass density of the distributed solution
-        total_cloud_mass_density = cloud_pressure / (
-            Duan2010.VENUS_GAS_CONSTANT * cloud_temperature
-        )
-        cloud_mass_density = (
-            james1997.tables["clouds"]["mass mixing ratio clouds"]
-            * total_cloud_mass_density
-        ).decompose()
-        # set to NaN where it's zero to avoid some division-by-zero later
-        cloud_mass_density[cloud_mass_density == 0] = np.nan
-        # next, we translate the concentration profile from James et al. (1997)
-        # to densities using Duan et al. (2010), Table 4
-        cloud_concentration = Quantity(
-            np.interp(
-                cloud_altitude.to("km").value,
-                james1997.tables["fig7"]["Altitude"].to("km").value,
-                james1997.tables["fig7"]["Weight Percent"].to("%").value,
-                left=np.nan,
-                right=np.nan,
-            ),
-            "%",
-        )
-
-        # set table names for easier joining
-        cloud_altitude.info.name = "altitude"
-        cloud_mass_density.info.name = "cloud mass density"
-        cloud_concentration.info.name = "cloud concentration"
-
-        # done
-        return cloud_altitude, cloud_mass_density, cloud_concentration
+        return profiles
 
     @staticmethod
     def get_polarization_parameters(
@@ -1698,17 +1377,13 @@ class Duan2010(Model):
         # convert the relative permittivity to polarization
         match use_clouds_from:
             case "cimino":
-                # use the equations in the Cimino paper
-                # calculate mass of shell and core
-                d_shell = self.cloud_mass_density / (1 + cimino1982.RATIO_MASS_DROPLETS)
-                d_core = cimino1982.RATIO_MASS_DROPLETS * d_shell
-                vol_frac_droplets = (
-                    d_core / cimino1982.D_DROPLET_CORE
-                    + d_shell / cimino1982.D_DROPLET_SHELL
-                ).decompose()
-                # compute complex polarization of droplets using eq. (10)
-                cloud_Pnu = cimino1982.get_h2so4_droplet_polarization(
-                    eps_prime_r_H2SO4_H2O - 1j * eps_dprime_r_H2SO4_H2O
+                # compute complex polarization of droplets and volume fraction
+                # from the Cimino paper
+                cloud_Pnu, vol_frac_droplets = (
+                    cimino1982.get_h2so4_droplet_polarization_volfrac(
+                        self.cloud_mass_density,
+                        eps_prime_r_H2SO4_H2O - 1j * eps_dprime_r_H2SO4_H2O,
+                    )
                 )
                 # save polarization
                 cloud_pol = cloud_Pnu.real * vol_frac_droplets
@@ -1757,7 +1432,7 @@ class Duan2010(Model):
                     Duan2010.eq25(eps_prime_r_H2SO4_H2O, eps_dprime_r_H2SO4_H2O) / eta_s
                 )
         # done
-        return cloud_pol.unmasked, cloud_absorp.unmasked
+        return np.nan_to_num(cloud_pol), np.nan_to_num(cloud_absorp)
 
     def evaluate_absorptions(
         self,

@@ -60,7 +60,9 @@ class Model:
     # cloud quantities
     cloud_mass_density: Quantity["mass density"]
     """ Mass density of the clouds """
-    cloud_concentration: Quantity["%"]
+    cloud_mass_mixing_ratio = Quantity["dimensionless"]
+    """ Mass mixing ratio of the clouds """
+    cloud_concentration: Quantity["dimensionless"]
     """ H2SO4 concentration by weight of the cloud droplets """
 
     # component quantities

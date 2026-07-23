@@ -65,7 +65,7 @@ def _get_cloud_mass_mixing_ratio() -> Profile:
 
 
 # get cloud mixing ratio Profile
-mass_mixing_ratio_clouds = _get_cloud_mass_mixing_ratio()
+cloud_mass_mixing_ratio = _get_cloud_mass_mixing_ratio()
 """ Mass mixing ratio of the clouds """
 # concentration can be taken directly from the figure
 cloud_concentration = Profile(
