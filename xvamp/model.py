@@ -19,15 +19,16 @@ from scipy.integrate import cumulative_trapezoid
 
 # package imports
 from .constants import *
-from .utils import (
-    float_or_array,
-    fill_df,
-    geometry_from_central_angle,
-    read_polarization_parameters,
+from .utils import float_or_array
+from .utils.interpolate import fill_df
+from .utils.io import read_polarization_parameters
+from .utils.parametersets import (
     HarveyLemmon2005Parameters,
     Pitzer1983Parameters,
     LineShapeParameters,
 )
+from .geometry import geometry_from_central_angle
+
 from .reference import (
     cimino1982,
     duan2010figures,
@@ -1046,10 +1047,12 @@ class Duan2010(Model):
 
         # get cloud values
         if use_clouds_from != "none":
-            cloud_altitude, cloud_mass_density, cloud_concentration = (
-                Duan2010.get_clouds(
-                    altitude=altitude, temperature=temperature, pressure=pressure
-                )
+            (
+                cloud_altitude,
+                cloud_mass_density,
+                cloud_concentration,
+            ) = Duan2010.get_clouds(
+                altitude=altitude, temperature=temperature, pressure=pressure
             )
             # make cloud dataframe for later merging
             cloud_df = pd.DataFrame(
@@ -1973,6 +1976,7 @@ class Duan2010(Model):
     ) -> Tuple[Quantity["length"], Quantity["mass density"], Quantity["%"]]:
         """
         Compute the cloud mass density and concentration following Section 2.1.5.
+        This function always assumes gas incompressibility.
 
         Parameters
         ----------
@@ -1993,15 +1997,36 @@ class Duan2010(Model):
             Cloud concentration profile
         """
 
-        # get cloud altitudes from reference
-        cloud_altitude = james1997.tables["clouds"]["altitude"]
+        # get cloud altitudess from reference
+        cloud_altitude = np.concatenate(
+            [
+                james1997.tables["fig7"]["Altitude"],
+                james1997.tables["clouds"]["altitude"],
+            ]
+        )
+        cloud_altitude = np.unique(
+            np.concatenate(
+                [
+                    cloud_altitude,
+                    Quantity(
+                        np.arange(
+                            np.ceil(cloud_altitude.to_value("km").min()),
+                            np.floor(cloud_altitude.to_value("km").max() + 0.1),
+                            1.0,
+                        ),
+                        "km",
+                    ),
+                ]
+            )
+        )
         # extract pressure and temperature from the main profile
         # onto these altitudes
         cloud_pressure = Quantity(
-            np.interp(
+            10
+            ** np.interp(
                 cloud_altitude.to("km").value,
                 altitude.to("km").value,
-                pressure.to("bar").value,
+                np.log10(pressure.to("bar").value),
                 left=np.nan,
                 right=np.nan,
             ),
@@ -2021,12 +2046,21 @@ class Duan2010(Model):
         total_cloud_mass_density = cloud_pressure / (
             Duan2010.VENUS_GAS_CONSTANT * cloud_temperature
         )
-        cloud_mass_density = (
-            james1997.tables["clouds"]["mass mixing ratio clouds"]
-            * total_cloud_mass_density
-        ).decompose()
+        cloud_mmr_extended = Quantity(
+            10
+            ** np.interp(
+                cloud_altitude.to_value("km"),
+                james1997.tables["clouds"]["altitude"].to_value("km"),
+                np.log10(james1997.tables["clouds"]["mass mixing ratio clouds"].value),
+                left=np.nan,
+                right=np.nan,
+            ),
+            james1997.tables["clouds"]["mass mixing ratio clouds"].unit,
+        )
+        cloud_mmr_extended[np.isnan(cloud_mmr_extended)] = 0
+        cloud_mass_density = (cloud_mmr_extended * total_cloud_mass_density).decompose()
         # set to NaN where it's zero to avoid some division-by-zero later
-        cloud_mass_density[cloud_mass_density == 0] = np.nan
+        cloud_mass_density[cloud_mass_density <= 0] = np.nan
         # next, we translate the concentration profile from James et al. (1997)
         # to densities using Duan et al. (2010), Table 4
         cloud_concentration = Quantity(
@@ -2430,7 +2464,9 @@ class Duan2010(Model):
                     Duan2010.eq25(eps_prime_r_H2SO4_H2O, eps_dprime_r_H2SO4_H2O) / eta_s
                 )
         # done
-        return cloud_pol.unmasked, cloud_absorp.unmasked
+        return np.nan_to_num(cloud_pol.filled(np.nan)), np.nan_to_num(
+            cloud_absorp.filled(np.nan)
+        )
 
     def evaluate_absorptions(
         self,

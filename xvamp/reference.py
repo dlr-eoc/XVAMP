@@ -16,14 +16,10 @@ from astropy.table import Table, QTable, hstack, vstack, join
 # package imports
 from . import data
 from .constants import ESU_CM, GAS_CONSTANT, SPEC_MOL_M
-from .utils import (
-    BoundedInterpolatingBasis,
-    cast_to_np,
-    get_sza,
-    interpolate_nodes,
-    read_unit_csv,
-    read_unit_fwf,
-)
+from .utils import cast_to_np
+from .utils.interpolate import BoundedInterpolatingBasis, interpolate_nodes
+from .utils.io import read_unit_csv, read_unit_fwf
+from .geometry import get_sza
 
 # classes get defined here and then initialized at the end
 
@@ -516,7 +512,6 @@ class Duan2010Figures(Reference):
             [33, 60],
             [37, 90],
             [40, 110],
-            [40, 110],
             [42, 150],
             [44, 220],
             [48, 150],
@@ -965,11 +960,14 @@ class James1997(Reference):
         # calculate liquid ratio
         mmr_name = "mass mixing ratio clouds"
         clouds[mmr_name] = np.fmax(clouds.iloc[:, 1] - clouds.iloc[:, 0], 0)
+        # get non-zero start for mixing ratio for proper bounds
+        i_start = np.argmax(np.diff(clouds[mmr_name]) > 0) + 1
+        clouds = clouds.iloc[i_start:, :]
         # move index back to column for export
         clouds.reset_index(names="altitude", inplace=True)
         # save as QTable with ppm units
         self.tables["clouds"] = QTable.from_pandas(
-            clouds[["altitude", mmr_name]],
+            clouds,
             units={"altitude": u.Unit("km"), mmr_name: u.Unit("1e-6")},
         )
 
