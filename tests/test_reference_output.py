@@ -17,7 +17,13 @@ from xvamp.utils.io import read_polarization_parameters
 
 
 # helper function to compare quantities
-def compare_quantities(actual: Quantity, desired: Quantity, name: str):
+def compare_quantities(
+    actual: Quantity,
+    desired: Quantity,
+    name: str,
+    rtol: float = 1e-10,
+    atol: float = 1e-10,
+):
     """
     Helper function to compare two :class:`astropy.unit.Quantity`s, comparing
     the values in the same units to numerical precision but only warning if the
@@ -31,6 +37,10 @@ def compare_quantities(actual: Quantity, desired: Quantity, name: str):
         Desired Quantity
     name
         Name to be used in the unit warning
+    rtol
+        Relative tolerance
+    atol
+        Absolute tolerance
 
     Raises
     ------
@@ -40,8 +50,8 @@ def compare_quantities(actual: Quantity, desired: Quantity, name: str):
     np.testing.assert_allclose(
         actual.to_value(desired.unit),
         desired.to_value(),
-        rtol=1e-14,
-        atol=1e-14,
+        rtol=rtol,
+        atol=atol,
         err_msg=f"Mismatched {name}",
     )
     if actual.unit != desired.unit:
