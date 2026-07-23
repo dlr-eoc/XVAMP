@@ -35,6 +35,7 @@ from ..references import (
     james_et_al_1997 as james1997,
     jpl_spectral_line_catalog as jplspectrallines,
     cimino_1982 as cimino1982,
+    vonzahn_moroz_1985 as zahnmoroz1985,
 )
 from .model import Model
 
@@ -45,12 +46,9 @@ class Duan2010(Model):
     # general constants
     VENUS_GAS_CONSTANT = Quantity(191.4, "J/kg K")
     """ Venus standard atmospheric gas constant (= R/M) [J/kg K] """
-    VENUS_STANDARD_CO2 = Quantity(0.965, u.dimensionless_unscaled)
-    """ Venus standard CO2 molar fraction [-] """
-    VENUS_STANDARD_N2 = Quantity(0.035, u.dimensionless_unscaled)
-    """ Venus standard N2 molar fraction [-] """
     VENUS_MOLAR_MASS = (
-        VENUS_STANDARD_CO2 * SPEC_MOL_M["CO2"] + VENUS_STANDARD_N2 * SPEC_MOL_M["N2"]
+        zahnmoroz1985.CO2_MR * SPEC_MOL_M["CO2"]
+        + zahnmoroz1985.N2_MR * SPEC_MOL_M["N2"]
     ).to("kg/mol")
     """ Venus standard atmospheric molar mass [kg/mol] """
     TRANSITION_ATMO_IONO = Quantity(100, "km")
@@ -61,8 +59,6 @@ class Duan2010(Model):
     """
 
     # constants relating to Argon (Ar)
-    MR_AR = Quantity(7e-5, u.dimensionless_unscaled)
-    """ Mixing ratio of Argon below 100 km from von :cite:t:`vonzahn1985` """
     HLP_AR = HarveyLemmon2005Parameters(4.1414, 0.0, 1.597, 0.262, -117.9, 0.0, 2.1)
     """ Mixture parameters for Ar in cgs units """
 
@@ -990,32 +986,14 @@ class Duan2010(Model):
         profiles = {}
 
         # CO2
-        profiles["CO2"] = Profile(
-            index=0.0,
-            index_unit="km",
-            data=Duan2010.VENUS_STANDARD_CO2.to("ppm"),
-            lower=None,
-            upper=None,
-        )
+        profiles["CO2"] = zahnmoroz1985.co2_molar_fraction
 
         # N2
-        profiles["N2"] = Profile(
-            index=0.0,
-            index_unit="km",
-            data=Duan2010.VENUS_STANDARD_N2.to("ppm"),
-            lower=None,
-            upper=None,
-        )
+        profiles["N2"] = zahnmoroz1985.n2_molar_fraction
 
         # AR
         if add_ar:
-            profiles["AR"] = Profile(
-                index=0.0,
-                index_unit="km",
-                data=Duan2010.MR_AR.to("ppm"),
-                lower=None,
-                upper=None,
-            )
+            profiles["AR"] = zahnmoroz1985.ar_molar_fraction
 
         # H2O
         if use_simple_h2o:
