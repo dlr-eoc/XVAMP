@@ -4,14 +4,23 @@ Utility module for the atmospheric model.
 
 # standard imports
 import numpy as np
-from typing import List
+from typing import List, Any
 from numpy.typing import NDArray
 from pandas import DataFrame
 from astropy.units import Quantity, Unit
 from astropy.table import QTable
 
-# package imports
-from .utils import cast_to_np
+
+# helper function
+def cast_to_np(input: Any | Quantity, unit: str) -> Any | NDArray[np.floating]:
+    """
+    Convert a :class:`~astropy.units.Quantity` into a NumPy array of [unit],
+    or simply return the input if it's not a :class:`~astropy.units.Quantity`.
+    """
+    try:
+        return input.to_value(unit)
+    except AttributeError:
+        return input
 
 
 class Profile:

@@ -16,7 +16,7 @@ from astropy.table import Table, QTable, hstack, vstack, join
 # package imports
 from . import data
 from .constants import ESU_CM, GAS_CONSTANT, SPEC_MOL_M
-from .utils import cast_to_np
+from .profile import cast_to_np
 from .utils.interpolate import BoundedInterpolatingBasis, interpolate_nodes
 from .utils.io import read_unit_csv, read_unit_fwf
 from .geometry import get_sza
