@@ -16,7 +16,7 @@ from astropy.table import QTable
 # package imports
 from ..constants import *
 from ..utils import float_or_array
-from ..profile import Profile, MultiProfile
+from ..profile import Profile, MultiProfile, check_physical_type
 from ..utils.io import read_polarization_parameters
 from ..utils.parametersets import (
     HarveyLemmon2005Parameters,
@@ -209,93 +209,116 @@ class Duan2010(Model):
     for concentrations between 0% and 100% [-]
     """
 
+    # for the numerical detail
+    MIN_ALTITUDE_SPACING = Quantity(1, "km")
+    """
+    Minimum height spacing between altitude nodes. Only becomes relevant if the
+    loaded profiles of the physical and chemical quantities are not dense enough
+    to ensure an accurate numerical integration.
+    """
+
     def __init__(
         self,
-        use_tpd_from: str = "duan",
-        use_compressible_gas: bool = True,
-        use_keating_temp_press_above100km: bool = False,
-        use_simple_h2o: bool = False,
-        use_simple_so2: bool = False,
-        use_simple_co: bool = False,
-        use_h2so4_from: str = "duan",
-        use_ocs_from: str = "duan",
-        add_ar: bool = False,
-        cutoff_so2_frequency: Quantity["frequency"] | None = None,
+        profile_TPD: MultiProfile | str = "duan",
+        profile_CO2: Profile | None = zahnmoroz1985.co2_molar_fraction,
+        profile_N2: Profile | None = zahnmoroz1985.n2_molar_fraction,
+        profile_H2O: Profile | None = duan2010figures.h2o_molar_fraction,
+        profile_SO2: Profile | None = duan2010figures.so2_molar_fraction,
+        profile_CO: Profile | None = duan2010figures.co_molar_fraction,
+        profile_H2SO4: Profile | None = duan2010figures.h2so4_molar_fraction,
+        profile_OCS: Profile | None = duan2010figures.ocs_molar_fraction,
+        profile_Ar: Profile | None = None,
+        use_clouds_from: str = "cimino",
         ocs_abspol_from: str = "duan",
         use_eps_prime_r_inf: bool = True,
-        use_virial_approximation: bool = True,
-        use_clouds_from: str = "cimino",
-        use_cimino_fitted_lookup: bool = False,
         load_polarization_parameters: bool | str | Path = True,
-        min_altitude_spacing: Quantity = Quantity(1, "km"),
+        use_compressible_gas: bool = True,
+        use_keating_temp_press_above100km: bool = False,
+        use_virial_approximation: bool = True,
+        cutoff_so2_frequency: Quantity["frequency"] | None = None,
+        use_cimino_fitted_lookup: bool = False,
     ) -> None:
         """
         Initialize the :cite:t:`duan2010` model. All parameters are set such that
-        they correspond to the Matlab implementation of the model.
+        they correspond to the Matlab ``config.atm_recipe = 'all_standard'`` setting.
 
         Parameters
         ----------
-        use_tpd_from
+        profile_TPD
             Which temperature, pressure, and density profile to use:
 
             - ``"duan"``: A combination of :cite:t:`seiff1985` and :cite:t:`zasova2006`
               as described in the paper, Section 3.1 (i.e., including the 3 K offset).
             - ``"seiff:x"``: A specific profile of :cite:t:`seiff1985` for a given
               latitude *x* (valid values: 30, 45, 60, 75, 85) in degrees.
-        use_compressible_gas
-            Whether to use the gas compressibility factor when deriving the mass
-            density for the 0-100 km altitude range, or assume the ideal gas law.
-            This has no effect on the model, since all species quantities are
-            derived from the pressure profile, which is directly loaded from
-            :cite:t:`seiff1985` and :cite:t:`zasova2006`.
-        use_keating_temp_press_above100km
-            Whether to use the temperature profile from :cite:t:`keating1985`
-            above 100 km, and get its matching pressure profile from the
-            ideal gas law.
-            This option has no effect on the model, since the transition between
-            atmosphere- and ionosphere-dominated permittivity profiles is at 100 km,
-            and the ionosphere is modeled differently. It is only useful if one
-            wants to load these quantities for later plotting.
-        use_simple_h2o
-            Define whether to use a simple water vapor profile or not.
-        use_simple_s2o
-            Define whether to use a simple sulfur dioxide profile or not.
-        use_simple_co
-            Define whether to use a simple carbon monoxide profile or not.
-        use_h2so4_from
-            Define which H2SO4 profile to use:
 
-            - ``"duan"``: Profile from :cite:t:`duan2010`, Fig. 7b (default).
-              Alternatively, specify ``"duan:3212"`` to use a modified profile from
-              Magellan orbit 3212.
-            - ``"kolodner:i"``: X-band-derived profile for orbit *i*  (valid values:
-              3212, 3213, 3214) from :cite:t:`kolodner1998`, Figs. 7-9. Alternatively,
-              omitting ``":i"`` uses the average of the three profiles. This option
-              adds about a tenth of a dB attenuation and removes about 4 mm of delay.
-            - ``"jenkins:x"``: Profiles of :cite:t:`jenkins2002` for different assumed
-              SO2 abundances *x* (valid values: 0, 50, 100, 150, 200). This changes the
+            Note that these preconfigured profiles are all downward-continued to
+            negative altitudes, and are influenced by the the parameters
+            ``use_compressible_gas`` and ``use_keating_temp_press_above100km``.
+            Alternatively, a :class:`xvamp.profile.MultiProfile` with the data columns
+            ``"temperature"``, ``"pressure"``, and optionally ``"mass_density"``
+            (and the index being the altitude).
+        profile_CO2
+            CO2 molar fraction profile.
+        profile_N2
+            N2 molar fraction profile.
+        profile_H2O
+            H2O molar fraction profile.
+        profile_SO2
+            SO2 molar fraction profile.
+        profile_CO
+            CO molar fraction profile.
+        profile_H2SO4
+            H2SO4 molar fraction profile. Preconfigured options are:
+
+            - :attr:`~xvamp.references.duan2010figures.h2so4_molar_fraction` or
+              :attr:`~xvamp.references.duan2010figures.h2so4_3212_molar_fraction`
+              from :cite:t:`duan2010` and the reference code.
+            - :attr:`~xvamp.references.kolodnersteffes1998.h2so4_mr_mean` (mean) or
+              :attr:`~xvamp.references.kolodnersteffes1998.h2so4_mr_3212` (where
+              ``3212``, ``3213`` and ``3214`` are individual orbits) from
+              :cite:t:`kolodner1998`, Figs. 7-9. This option adds about a tenth of a
+              dB attenuation and removes about 4 mm of delay.
+            - :attr:`~xvamp.references.jenkins2002.h2so4_molar_fraction_0ppm_so2` (where
+              ``0``, ``50``, ``100``, ``150``, ``200`` are assumptions about the SO2
+              content) from :cite:t:`jenkins2002`. This changes the
               attenuation by about a tenth of a dB and the delay by some millimeters.
-            - ``"orbit:i"``: Raw H2SO4 profiles from :cite:t:`jenkins1996a` for a given
-              Magellan orbit *i* (valid values: 3212, 3213, 3214). This changes the
+            - :attr:`~xvamp.references.magellan321x.h2so4_mr_x_3212` (where
+              ``3212``, ``3213`` and ``3214`` are individual orbits) from
+              :cite:t:`jenkins1996a`.  This changes the
               attenuation by about a dB and the delay of some millimeters.
+        profile_OCS
+            OCS molar fraction profile. Preconfigured options are:
 
-        use_ocs_from
-            Define which OCS profile to use:
-
-            - ``"duan"``: Profile from :cite:t:`duan2010`
-            - ``"simple"``: Simpler profile from the reference code
-            - ``"marcq"``: Profile from :cite:t:`marcq2006`
+            - :attr:`~xvamp.references.duan2010figures.co_molar_fraction`
+            - :attr:`~xvamp.references.marcq2006.ocs_mr` from :cite:t:`marcq2006`
 
             This has a range delay effect on the sub-millimeter scale, and an effect
             on the two-way attenuation on the millidecibel scale.
-        add_ar
-            Whether to add a constant value for Argon into the mixture.
+        profile_Ar
+            Argon molar fraction profile. The default is not to add Argon to the
+            mixture, but a preconfigured (constant) profile is
+            :attr:`~xvamp.referenceszahnmoroz1985.ar_molar_fraction`.
             This has a range delay effect on the sub-micrometer scale, and an effect
             on the two-way attenuation on the tens of microdecibel scale.
-        cutoff_so2_frequency
-            When computing the absorption coefficient of SO2, include all spectral
-            lines up to this frequency. If ``None``, use all available ones.
-            This option is only kept for development purposes.
+        use_clouds_from
+            Define which cloud polarization and absorption model to use:
+
+            - ``"cimino"``: :cite:t:`cimino1982`, eq. (10) and (16)
+            - ``"duan"``: :cite:t:`duan2010`, sections 2.1.5 and 2.2.5
+            - ``"none"``: Ignore all cloud effects
+
+            See the notes on the importance of this parameter at
+            :ref:`implementation:Cloud polarization and absorption`.
+        use_compressible_gas
+            Whether to use the gas compressibility factor when deriving the mass
+            density for the 0-100 km altitude range, or assume the ideal gas law.
+            This only affects the attenuation of the cloud layer, since all other
+            species quantities are derived from the pressure profile, which is directly
+            loaded from :cite:t:`seiff1985` and :cite:t:`zasova2006`.
+            The attenuation difference is about 2 millidecibels.
+            If a :class:`xvamp.profile.MultiProfile` is passed as the ``profile_TPD``
+            parameter and contains a mass density, ``use_compressible_gas`` is ignored.
         ocs_abspol_from
             Define which model to use to compute the absorption and polarization
             profiles of OCS.
@@ -320,20 +343,32 @@ class Duan2010(Model):
             resulting from the real part of the relative permittivity are stored.
             This option has a centimeter-level effect on the delay and changes the
             attenuation by micro-decibels.
+        load_polarization_parameters
+            By default, the polarization parameters are loaded from a prepackaged
+            configuration file (in ``"data/default_polarization_parameters.toml"``).
+            If set to ``False``, they are recomputed with the current settings.
+            If set to a filename, the parameters are loaded from there.
+
+        Other Parameters
+        ----------------
+        use_keating_temp_press_above100km
+            Only used if ``profile_TPD`` is not a :class:`xvamp.profile.MultiProfile`.
+            Whether to use the temperature profile from :cite:t:`keating1985`
+            above 100 km, and get its matching pressure profile from the
+            ideal gas law.
+            This option has no effect on the model, since the transition between
+            atmosphere- and ionosphere-dominated permittivity profiles is at 100 km,
+            and the ionosphere is modeled differently. It is only useful if one
+            wants to load these quantities for later plotting.
         use_virial_approximation
             Whether to use the leading terms of the virial approximation to calculate
-            the total polarization of the polar species (from Harvey & Lemmon, 2005),
+            the total polarization of the polar species :cite:p:`harvey2005`,
             or to use the polarization relationship by :cite:t:`pitzer1983`.
             These two approaches are numerically fully equivalent.
-        use_clouds_from
-            Define which cloud polarization and absorption model to use:
-
-            - ``"cimino"``: :cite:t:`cimino1982`, eq. (10) and (16)
-            - ``"duan"``: :cite:t:`duan2010`, sections 2.1.5 and 2.2.5
-            - ``"none"``: Ignore all cloud effects
-
-            See the notes on the importance of this parameter at
-            :ref:`implementation:Cloud polarization and absorption`.
+        cutoff_so2_frequency
+            When computing the absorption coefficient of SO2, include all spectral
+            lines up to this frequency. If ``None``, use all available ones.
+            This option is only kept for development purposes.
         use_cimino_fitted_lookup
             Whether to estimate the complex permittivity of gaseous H2SO4 from
             lookup tables and then pre-fitted analytical extrapolation functions,
@@ -342,66 +377,101 @@ class Duan2010(Model):
             model is flawed. Regardless, this options only has a range delay effect
             on the sub-micrometer scale, and an effect on the two-way attenuation
             on the millidecibel scale.
-        load_polarization_parameters
-            By default, the polarization parameters are loaded from a prepackaged
-            configuration file (in ``"data/default_polarization_parameters.toml"``).
-            If set to ``False``, they are recomputed with the current settings.
-            If set to a filename, the parameters are loaded from there.
-        min_altitude_spacing
-            Minimum height spacing between altitude nodes.
         """
 
         # part 1: physical quantities
 
         # temperature, pressure and optionally density
-        prof_tpd = Duan2010.get_tpd(
-            use_tpd_from=use_tpd_from,
-            use_compressible_gas=use_compressible_gas,
-            use_keating_temp_press_above100km=use_keating_temp_press_above100km,
-        )
-        # start collecting altitude levels [km]
-        km = Unit("km")
-        _joint_alt = [prof_tpd.index_to(km)]
+        if isinstance(profile_TPD, MultiProfile):
+            prof_tpd = profile_TPD
+            # check if temperature is present and has the right units
+            if not "temperature" in prof_tpd.data_names:
+                raise ValueError(
+                    "MultiProfile passed for 'profile_TPD' "
+                    "must contain a 'temperature' entry."
+                )
+            check_physical_type(
+                prof_tpd.temperature, "temperature", "length", "profile_TPD.temperature"
+            )
+            # check pressure
+            if not "pressure" in prof_tpd.data_names:
+                raise ValueError(
+                    "MultiProfile passed for 'profile_TPD' "
+                    "must contain a 'pressure' entry."
+                )
+            check_physical_type(prof_tpd.pressure, "pressure", "profile_TPD.pressure")
+            # check mass density
+            if "mass_density" in prof_tpd.data_names:
+                use_compressible_gas = True
+                check_physical_type(
+                    prof_tpd.mass_density, "mass density", "profile_TPD.mass_density"
+                )
+        else:
+            prof_tpd = Duan2010.get_tpd(
+                profile_TPD=profile_TPD,
+                use_compressible_gas=use_compressible_gas,
+                use_keating_temp_press_above100km=use_keating_temp_press_above100km,
+            )
 
         # part 2: compositional profiles
 
         # get the mixing ratios of the chemical species
-        dict_prof_species = Duan2010.get_composition(
-            use_simple_h2o=use_simple_h2o,
-            use_simple_so2=use_simple_so2,
-            use_simple_co=use_simple_co,
-            use_h2so4_from=use_h2so4_from,
-            use_ocs_from=use_ocs_from,
-            add_ar=add_ar,
-        )
-        # track their altitude levels
-        _joint_alt.extend([p.index_to(km) for p in dict_prof_species.values()])
+        dict_prof_species = {}
+        if profile_CO2 is not None:
+            dict_prof_species["CO2"] = profile_CO2
+        if profile_N2 is not None:
+            dict_prof_species["N2"] = profile_N2
+        if profile_H2O is not None:
+            dict_prof_species["H2O"] = profile_H2O
+        if profile_SO2 is not None:
+            dict_prof_species["SO2"] = profile_SO2
+        if profile_CO is not None:
+            dict_prof_species["CO"] = profile_CO
+        if profile_H2SO4 is not None:
+            dict_prof_species["H2SO4"] = profile_H2SO4
+        if profile_OCS is not None:
+            dict_prof_species["OCS"] = profile_OCS
+        if profile_Ar is not None:
+            dict_prof_species["AR"] = profile_Ar
+        # check their units
+        for sname, sprof in dict_prof_species.items():
+            check_physical_type(sprof, "dimensionless", "length", f"profile_{sname}")
 
         # get the electron density
         prof_electrons = duan2010figures.electron_density
-        _joint_alt.append(prof_electrons.index_to(km))
 
         # get cloud profiles
         if use_clouds_from != "none":
             prof_cloud_concentration = james1997.cloud_concentration
             prof_cloud_mass_mixing_ratio = james1997.cloud_mass_mixing_ratio
-            _joint_alt.extend(
-                [
-                    prof_cloud_concentration.index_to("km"),
-                    prof_cloud_mass_mixing_ratio.index_to(km),
-                ]
-            )
 
         # part 3: interpolate all physical quantities, mixing ratios, electron density,
         # and cloud profile onto the same altitude levels, ensuring a minimum spacing
         # of altitude values
 
-        # get joint altitude levels, ensuring a minimum spacing
-        min_alt_spacing_km = min_altitude_spacing.to("km").value
-        _joint_alt.append(
-            np.arange(-7, 375 + min_alt_spacing_km / 2, min_alt_spacing_km, dtype=float)
+        # get all altitude levels and add a minimum spacing
+        km = Unit("km")
+        min_alt_spacing_km = Duan2010.MIN_ALTITUDE_SPACING.to_value(km)
+        joint_alt = (
+            [
+                prof_tpd.index_to(km),
+                prof_electrons.index_to(km),
+                np.arange(
+                    -7, 375 + min_alt_spacing_km / 2, min_alt_spacing_km, dtype=float
+                ),
+            ]
+            + [p.index_to(km) for p in dict_prof_species.values()]
+            + (
+                [
+                    prof_cloud_concentration.index_to(km),
+                    prof_cloud_mass_mixing_ratio.index_to(km),
+                ]
+                if use_clouds_from != "none"
+                else []
+            )
         )
-        self.altitude = Quantity(np.unique(np.concatenate(_joint_alt)), km)
+        # combine for joint altitude profile
+        self.altitude = Quantity(np.unique(np.concatenate(joint_alt)), km)
 
         # evaluate all Profiles
         # temperature, pressure, and density
@@ -454,7 +524,6 @@ class Duan2010(Model):
         # check if we should recompute them
         if load_polarization_parameters == False:
             self.polarization_parameters = Duan2010.compute_polarization_parameters(
-                add_ar=add_ar,
                 ocs_abspol_from=ocs_abspol_from,
                 use_eps_prime_r_inf=use_eps_prime_r_inf,
                 use_virial_approximation=use_virial_approximation,
@@ -703,7 +772,7 @@ class Duan2010(Model):
 
     @staticmethod
     def get_tpd(
-        use_tpd_from: str = "duan",
+        profile_TPD: str = "duan",
         use_compressible_gas: bool = True,
         use_keating_temp_press_above100km: bool = False,
     ) -> MultiProfile:
@@ -712,13 +781,16 @@ class Duan2010(Model):
 
         Parameters
         ----------
-        use_tpd_from
+        profile_TPD
             Which temperature, pressure, and density profile to use:
 
             - ``"duan"``: A combination of :cite:t:`seiff1985` and :cite:t:`zasova2006`
               as described in the paper, Section 3.1 (i.e., including the 3 K offset).
             - ``"seiff:x"``: A specific profile of :cite:t:`seiff1985` for a given
               latitude *x* (valid values: 30, 45, 60, 75, 85) in degrees.
+
+            Note that these preconfigured profiles are all downward-continued to
+            negative altitudes.
         use_compressible_gas
             Whether to use the gas compressibility factor when deriving the mass
             density for the 0-100 km altitude range, or assume the ideal gas law.
@@ -743,7 +815,7 @@ class Duan2010(Model):
             dens = [seiff1985.tables["1-1"]["ρ"]]
 
         # now, determine which continuation to make
-        match use_tpd_from.split(":"):
+        match profile_TPD.split(":"):
 
             # the default model, combining Seiff et al. (1985) and Zasova et al. (2006)
             case ["duan"]:
@@ -824,7 +896,7 @@ class Duan2010(Model):
                 )
 
             case _:
-                raise ValueError(f"Unknown TPD model {use_tpd_from=}")
+                raise ValueError(f"Unknown TPD model {profile_TPD=}")
 
         # insert negative profiles into lists
         alt.insert(0, alt_neg)
@@ -928,133 +1000,7 @@ class Duan2010(Model):
         return tpd
 
     @staticmethod
-    def get_composition(
-        use_simple_h2o: bool = False,
-        use_simple_so2: bool = False,
-        use_simple_co: bool = False,
-        use_h2so4_from: str = "duan",
-        use_ocs_from: str = "duan",
-        add_ar: bool = False,
-    ) -> dict[str, Profile]:
-        """
-        Load the compositions for the different chemical species.
-
-        Parameters
-        ----------
-        use_simple_h2o
-            Define whether to use a simple water vapor profile or not.
-        use_simple_so2
-            Define whether to use a simple sulfur dioxide profile or not.
-        use_simple_co
-            Define whether to use a simple carbon monoxide profile or not.
-        use_h2so4_from
-            Define which H2SO4 profile to use:
-
-            - ``"duan"``: Profile from :cite:t:`duan2010`, Fig. 7b (default).
-              Alternatively, specify ``"duan:3212"`` to use a modified profile from
-              Magellan orbit 3212.
-            - ``"kolodner:i"``: X-band-derived profile for orbit *i*  (valid values:
-              3212, 3213, 3214) from :cite:t:`kolodner1998`, Figs. 7-9. Alternatively,
-              omitting ``":i"`` uses the average of the three profiles. This option
-              adds about a tenth of a dB attenuation and removes about 4 mm of delay.
-            - ``"jenkins:x"``: Profiles of :cite:t:`jenkins2002` for different assumed
-              SO2 abundances *x* (valid values: 0, 50, 100, 150, 200). This changes the
-              attenuation by about a tenth of a dB and the delay by some millimeters.
-            - ``"orbit:i"``: Raw H2SO4 profiles from :cite:t:`jenkins1996a` for a given
-              Magellan orbit *i* (valid values: 3212, 3213, 3214). This changes the
-              attenuation by about a dB and the delay of some millimeters.
-
-        use_ocs_from
-            Define which OCS profile to use:
-
-            - ``"duan"``: Profile from :cite:t:`duan2010`
-            - ``"simple"``: Simpler profile from the reference code
-            - ``"marcq"``: Profile from :cite:t:`marcq2006`
-
-            This has a range delay effect on the sub-millimeter scale, and an effect
-            on the two-way attenuation on the millidecibel scale.
-
-        add_ar
-            Whether to add a constant value for Argon into the mixture.
-
-        Returns
-        -------
-            Dictionary of all mixing ratios as :class:`~xvamp.profile.Profile`s
-        """
-
-        # initialize
-        profiles = {}
-
-        # CO2
-        profiles["CO2"] = zahnmoroz1985.co2_molar_fraction
-
-        # N2
-        profiles["N2"] = zahnmoroz1985.n2_molar_fraction
-
-        # AR
-        if add_ar:
-            profiles["AR"] = zahnmoroz1985.ar_molar_fraction
-
-        # H2O
-        if use_simple_h2o:
-            profiles["H2O"] = duan2010figures.h2o_old_molar_fraction
-        else:
-            profiles["H2O"] = duan2010figures.h2o_molar_fraction
-
-        # SO2
-        if use_simple_so2:
-            profiles["SO2"] = duan2010figures.so2_old_molar_fraction
-        else:
-            profiles["SO2"] = duan2010figures.so2_molar_fraction
-
-        # H2SO4
-        match use_h2so4_from.split(":"):
-            case ["duan"]:
-                # use the default profile
-                profiles["H2SO4"] = duan2010figures.h2so4_molar_fraction
-            case ["duan", "3212"]:
-                # use the modified Magellan orbit 3212 profile
-                profiles["H2SO4"] = duan2010figures.h2so4_3212_molar_fraction
-            case ["kolodner"]:
-                # use the average profiles from Kolodner & Steffes
-                profiles["H2SO4"] = kolodnersteffes1998.h2so4_mr_mean
-            case ["kolodner", i] if int(i) in [3212, 3213, 3214]:
-                # use the individual profiles from Kolodner & Steffes
-                profiles["H2SO4"] = getattr(kolodnersteffes1998, f"h2so4_mr_{i}")
-            case ["jenkins", x] if int(x) in range(0, 250, 50):
-                # use one of the reprocessed profiles from Jenkins et al. 2002
-                profiles["H2SO4"] = getattr(
-                    jenkins2002, f"h2so4_molar_fraction_{x}ppm_so2"
-                )
-            case ["orbit", i] if int(i) in [3212, 3213, 3214]:
-                # use a specific orbit from Magellan's original dataset
-                profiles["H2SO4"] = getattr(magellan321x, f"h2so4_mr_x_{i}")
-            case _:
-                raise ValueError(f"Unknown H2SO4 source {use_h2so4_from=}")
-
-        # CO
-        if use_simple_co:
-            profiles["CO"] = duan2010figures.co_old_molar_fraction
-        else:
-            profiles["CO"] = duan2010figures.co_molar_fraction
-
-        # OCS
-        match use_ocs_from:
-            case "marcq":
-                profiles["OCS"] = marcq2006.ocs_mr
-            case "duan":
-                profiles["OCS"] = duan2010figures.ocs_molar_fraction
-            case "simple":
-                profiles["OCS"] = duan2010figures.ocs_old_molar_fraction
-            case _:
-                raise ValueError(f"Unknown OCS source {use_ocs_from=}")
-
-        # done
-        return profiles
-
-    @staticmethod
     def compute_polarization_parameters(
-        add_ar: bool = False,
         ocs_abspol_from: str = "duan",
         use_eps_prime_r_inf: bool = True,
         use_virial_approximation: bool = True,
@@ -1065,8 +1011,6 @@ class Duan2010(Model):
 
         Parameters
         ----------
-        add_ar
-            Whether to add a constant value for Argon into the mixture.
         ocs_abspol_from
             Define which model to use to compute the absorption and polarization
             profiles of OCS.
@@ -1102,9 +1046,8 @@ class Duan2010(Model):
         polarization_parameters["CO2"] = Duan2010.HLP_CO2
         # N2
         polarization_parameters["N2"] = Duan2010.HLP_N2
-        # AR, if we have it
-        if add_ar:
-            polarization_parameters["AR"] = Duan2010.HLP_AR
+        # AR
+        polarization_parameters["AR"] = Duan2010.HLP_AR
 
         # section 2.1.4: polar components
 

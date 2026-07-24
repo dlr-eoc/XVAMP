@@ -3,11 +3,12 @@ Utility module for the atmospheric model.
 """
 
 # standard imports
+from __future__ import annotations
 import numpy as np
 from typing import List, Any
 from numpy.typing import NDArray
 from pandas import DataFrame
-from astropy.units import Quantity, Unit
+from astropy.units import Quantity, Unit, UnitsError, get_physical_type
 from astropy.table import QTable
 
 
@@ -21,6 +22,42 @@ def cast_to_np(input: Any | Quantity, unit: str) -> Any | NDArray[np.floating]:
         return input.to_value(unit)
     except AttributeError:
         return input
+
+
+# unit checker helper
+def check_physical_type(
+    p: Profile,
+    data_physical_type: str,
+    index_physical_type: str | None = None,
+    name: str | None = None,
+):
+    """
+    Check whether a Profile has data (and optionally, index) of the desired
+    :mod:`~astropy.units.physical` type.
+
+    Parameters
+    ----------
+    p
+        :class:`~profile` to check
+    data_physical_type
+        Desired physical type of the data
+    index_physical_type
+        Desired physical type of the index
+    name
+        Add this name to the raised error if a check fails
+
+    Raises
+    ------
+    UnitsError
+        If the data (and/or index) is of the wrong physical type
+    """
+    msg_suffix = f" in {name}" if name is not None else ""
+    if (index_physical_type is not None) and (
+        get_physical_type(p.index_unit) != get_physical_type(index_physical_type)
+    ):
+        raise UnitsError("Wrong index unit" + msg_suffix)
+    if get_physical_type(p.data_unit) != get_physical_type(data_physical_type):
+        raise UnitsError("Wrong data unit" + msg_suffix)
 
 
 class Profile:
