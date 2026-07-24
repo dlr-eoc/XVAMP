@@ -185,6 +185,8 @@ class Duan2010(Model):
     """
     Real part of the relative permittivity for H2SO4 at 2650 MHz
     for concentrations between 0% and 100% [-]
+
+    :meta hide-value:
     """
     EPS_DPRIME_R_H2SO4 = np.r_[
         np.linspace(0, 235, 10),
@@ -204,6 +206,8 @@ class Duan2010(Model):
     """
     Imaginary part of the relative permittivity for H2SO4 at 2650 MHz
     for concentrations between 0% and 100% [-]
+
+    :meta hide-value:
     """
 
     # for the numerical detail
@@ -565,13 +569,17 @@ class Duan2010(Model):
 
         Notes
         -----
-        Reads: :attr:`~Model.pressure`, :attr:`~Model.temperature`,
-        :attr:`~Model.molar_fractions`, and :attr:`~Model.cloud_mass_mixing_ratio`
+        Reads: :attr:`~xvamp.models.model.Model.pressure`,
+        :attr:`~xvamp.models.model.Model.temperature`,
+        :attr:`~xvamp.models.model.Model.molar_fractions`,
+        and :attr:`~xvamp.models.model.Model.cloud_mass_mixing_ratio`
 
-        Writes: :attr:`~Model.number_density`, :attr:`~Model.mass_densities`,
-        :attr:`~Model.molar_density`, :attr:`~Model.molar_densities`,
-        :attr:`~Model.cloud_mass_density` and (if not already present)
-        :attr:`~Model.mass_density`
+        Writes: :attr:`~xvamp.models.model.Model.number_density`,
+        :attr:`~xvamp.models.model.Model.mass_densities`,
+        :attr:`~xvamp.models.model.Model.molar_density`,
+        :attr:`~xvamp.models.model.Model.molar_densities`,
+        :attr:`~xvamp.models.model.Model.cloud_mass_density` and
+        (if not already present) :attr:`~xvamp.models.model.Model.mass_density`
         """
 
         # total densities
@@ -673,14 +681,20 @@ class Duan2010(Model):
 
         Notes
         -----
-        Reads: :attr:`~Model.polarization_parameters`, :attr:`~Model.temperature`,
-        :attr:`~Model.pressure`, :attr:`~Model.molar_fractions`,
-        :attr:`~Model.molar_densities`, :attr:`~Model.mass_densities`,
-        :attr:`~Model.cloud_concentration`, and :attr:`~Model.cloud_mass_density`.
+        Reads: :attr:`~xvamp.models.model.Model.polarization_parameters`,
+        :attr:`~xvamp.models.model.Model.temperature`,
+        :attr:`~xvamp.models.model.Model.pressure`,
+        :attr:`~xvamp.models.model.Model.molar_fractions`,
+        :attr:`~xvamp.models.model.Model.molar_densities`,
+        :attr:`~xvamp.models.model.Model.mass_densities`,
+        :attr:`~xvamp.models.model.Model.cloud_concentration`,
+        and :attr:`~xvamp.models.model.Model.cloud_mass_density`.
 
-        Writes: :attr:`~Model.polarizations`, :attr:`~Model.polarization`,
-        :attr:`~Model.absorptions`, :attr:`~Model.absorption`, and
-        :attr:`~Model.eps_prime_r_atmo`.
+        Writes: :attr:`~xvamp.models.model.Model.polarizations`,
+        :attr:`~xvamp.models.model.Model.polarization`,
+        :attr:`~xvamp.models.model.Model.absorptions`,
+        :attr:`~xvamp.models.model.Model.absorption`, and
+        :attr:`~xvamp.models.model.Model.eps_prime_r_atmo`.
         """
 
         # sections 2.1.3-2.1.4: non-polar and polar components
@@ -721,9 +735,9 @@ class Duan2010(Model):
 
         Notes
         -----
-        Reads: :attr:`~Model.electron_density`.
+        Reads: :attr:`~xvamp.models.model.Model.electron_density`.
 
-        Writes: :attr:`~Model.eps_prime_r_iono`.
+        Writes: :attr:`~xvamp.models.model.Model.eps_prime_r_iono`.
         """
         # section 2.1.6: real part of the relative permittivity of the ionosphere
         self.eps_prime_r_iono = Duan2010.eq22_mod(
@@ -737,10 +751,13 @@ class Duan2010(Model):
 
         Notes
         -----
-        Reads: :attr:`~Model.altitude`, :attr:`~Model.eps_prime_r_atmo`,
-        :attr:`~Model.eps_prime_r_iono`, and :attr:`~Model.absorption`.
+        Reads: :attr:`~xvamp.models.model.Model.altitude`,
+        :attr:`~xvamp.models.model.Model.eps_prime_r_atmo`,
+        :attr:`~xvamp.models.model.Model.eps_prime_r_iono`,
+        and :attr:`~xvamp.models.model.Model.absorption`.
 
-        Writes: :attr:`~Model.relative_permittivity` and :attr:`~Model.refraction`.
+        Writes: :attr:`~xvamp.models.model.Model.relative_permittivity`
+        and :attr:`~xvamp.models.model.Model.refraction`.
         """
 
         # combine the computed real parts of the relative permittivity from

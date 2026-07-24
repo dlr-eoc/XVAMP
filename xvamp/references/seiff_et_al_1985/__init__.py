@@ -38,6 +38,8 @@ dcube_33km_100km = np.stack(
 """
 Physical quantities as a function of altitude and
 latitude between 33-100km
+
+:meta hide-value:
 """
 units_33km_100km = [
     tables["1-2b"].columns[i].unit for i in range(dcube_33km_100km.shape[1])

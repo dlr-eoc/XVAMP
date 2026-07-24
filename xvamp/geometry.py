@@ -1,5 +1,5 @@
 """
-Utility module for the atmospheric model.
+Provides functions around the satellite's viewing geometry.
 """
 
 # standard imports
@@ -92,7 +92,7 @@ def height_to_radius(
         Planet radius to use.
         If not a Quantity, the ``unit`` keyword must match.
     unit
-        :class:`~astropy.unit.Unit` of the output.
+        :class:`~astropy.units.Unit` of the output.
 
     Returns
     -------

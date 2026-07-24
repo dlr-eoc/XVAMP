@@ -1,5 +1,5 @@
 """
-Utility module for the atmospheric model.
+In- and output helper functions.
 """
 
 # standard imports

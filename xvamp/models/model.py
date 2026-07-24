@@ -367,7 +367,7 @@ class Model:
         Calculate the range delay (defined as the difference between the apparent and
         geometric range) and two-way attenuation through the atmosphere.
         Convenience wrapper around :meth:`~Model.get_range_attenuation_angles`
-        and :func:`~xvamp.utils.geometry_from_central_angle`.
+        and :func:`~xvamp.geometry.geometry_from_central_angle`.
 
         Parameters
         ----------

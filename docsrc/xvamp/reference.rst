@@ -1,4 +1,0 @@
-Reference
-=========
-
-.. automodule:: xvamp.reference

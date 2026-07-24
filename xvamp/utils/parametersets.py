@@ -1,5 +1,6 @@
 """
-Utility module for the atmospheric model.
+Module containing classes which enable a convenient and well-documented
+way to store and compare parameter sets.
 """
 
 # standard imports

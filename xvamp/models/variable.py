@@ -133,7 +133,7 @@ class VariableProfiles(Duan2010):
 
         Notes
         -----
-        Overwrites :attr:`~Model.electron_density`, then calls
+        Overwrites :attr:`~xvamp.models.model.Model.electron_density`, then calls
         :meth:`~Duan2010.update_ionosphere` and
         :meth:`~Duan2010.update_rel_perm_refraction`.
         """
@@ -174,7 +174,8 @@ class VariableProfiles(Duan2010):
 
         Notes
         -----
-        Overwrites :attr:`~Model.altitude` and :attr:`~Model.temperature`,
+        Overwrites :attr:`~xvamp.models.model.Model.altitude`
+        and :attr:`~xvamp.models.model.Model.temperature`,
         then calls :meth:`~Duan2010.update_densities`,
         :meth:`~Duan2010.update_pol_absorp_atmosphere`,
         :meth:`~Duan2010.update_ionosphere`,

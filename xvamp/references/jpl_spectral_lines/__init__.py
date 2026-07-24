@@ -51,6 +51,14 @@ tables = {
 
 # provide direct quick access to the tables
 ocs_lines = tables["OCS"]
-""" OCS spectral lines from :cite:t:`pickett1998` """
+"""
+OCS spectral lines from :cite:t:`pickett1998`
+
+:meta hide-value:
+"""
 so2_lines = tables["SO2"]
-""" SO2 spectral lines from :cite:t:`pickett1998` """
+"""
+SO2 spectral lines from :cite:t:`pickett1998`
+
+:meta hide-value:
+"""

@@ -71,6 +71,9 @@ autodoc_default_options = {
     "member-order": "groupwise",
     "class-doc-from": "both",
     "special-members": "__call__",
+    "undoc-members": False,
+    "show-inheritance": True,
+    "exclude-members": "datafolder, tables",
 }
 
 # for the bibliography

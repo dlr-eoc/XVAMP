@@ -83,6 +83,8 @@ dcube_150km_250km = np.stack(
 """
 Physical and species quantities as a function of altitude and
 solar zenith angle between 150-250km
+
+:meta hide-value:
 """
 units_150km_250km = [
     tables["4-4"].columns[i].unit for i in range(dcube_150km_250km.shape[1])
@@ -100,6 +102,8 @@ dcube_100km_150km = np.stack(
 """
 Physical and species quantities as a function of altitude and
 midnight/noon between 100-150km
+
+:meta hide-value:
 """
 units_100km_150km = [
     tables["4-15"].columns[i].unit for i in range(dcube_100km_150km.shape[1])

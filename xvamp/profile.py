@@ -1,5 +1,6 @@
 """
-Utility module for the atmospheric model.
+Provides the :class:`~Profile` class which allows convenient definition and flexible
+inter- and extrapolation of any type of profile.
 """
 
 # standard imports
