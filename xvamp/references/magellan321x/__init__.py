@@ -63,7 +63,7 @@ datafolder = res_files()
 tables = {
     "mgn_abs": read_unit_fwf_desc(datafolder / "mgn_abs.dat", DESC_ABS, STR_CONVERTER),
     "mgn_rtpd": read_unit_fwf_desc(
-        datafolder / "mgn_rtpd.dat", DESC_ABS, STR_CONVERTER
+        datafolder / "mgn_rtpd.dat", DESC_RTPD, STR_CONVERTER
     ),
 }
 """ Loaded tables """
