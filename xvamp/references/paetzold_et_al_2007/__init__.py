@@ -61,6 +61,7 @@ def _get_el_densities() -> MultiProfile:
         index_unit=tables[t]["Altitude"].unit,
         data=all_densities,
         data_units=UNIT_EL_DENSITY,
+        data_names=[f"doy_{d}" for d in DOYS[:6]],
     )
 
 
