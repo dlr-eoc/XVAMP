@@ -8,13 +8,12 @@ import astropy.units as u
 from importlib.resources import files as res_files
 from typing import Literal, Tuple
 from numpy.typing import NDArray
-from pathlib import Path
 from scipy.interpolate import LinearNDInterpolator, Akima1DInterpolator
 from astropy.units import Quantity, Unit
 from astropy.table import Table, QTable, hstack, vstack, join
 
 # package imports
-from . import data
+from . import references as data
 from .constants import ESU_CM, GAS_CONSTANT, SPEC_MOL_M
 from .profile import cast_to_np
 from .utils.interpolate import BoundedInterpolatingBasis, interpolate_nodes

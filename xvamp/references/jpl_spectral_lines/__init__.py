@@ -6,12 +6,9 @@ Module that provides the JPL spectral line catalog from :cite:t:`pickett1998`.
 from importlib.resources import files as res_files
 
 # package imports
-from .. import data
-from ..utils.io import read_unit_fwf
+from ...utils.io import read_unit_fwf
 
-# data location
-BASEFOLDER = "jpl_spectral_lines"
-""" Base folder for data """
+# data content
 TABLES = {"OCS": "c060001.cat", "SO2": "c064002.cat"}
 """ Tables to load """
 
@@ -36,10 +33,9 @@ WIDTHS = [13, 8, 8, 2, 10, 3, 7, 4, 12, 12]
 UNITS = ["MHz", "MHz", "dex(nm2 MHz)", "", "cm-1", "", "", "", "", ""]
 """ Column units """
 
-
 # get local installation folder paths
-datafolder = res_files(data) / BASEFOLDER
-""" Resolved data folder location """
+datafolder = res_files()
+""" Resolved current folder location """
 # load raw data files
 tables = {
     species: read_unit_fwf(

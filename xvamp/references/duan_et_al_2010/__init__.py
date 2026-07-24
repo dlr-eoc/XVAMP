@@ -10,19 +10,16 @@ import astropy.units as u
 from astropy.units import cds
 
 # package imports
-from .. import data
-from ..utils.io import read_unit_csv
-from ..profile import Profile
+from ...utils.io import read_unit_csv
+from ...profile import Profile
 
-# data location
-BASEFOLDER = "duan_et_al_2010"
-""" Base folder for data """
+# data content
 TABLES = [f"fig{n}" for n in ["6b", "7a", "7b", "7d", "8a", "8b", "9a", "9b"]] + ["4"]
 """ Table numbers to load """
 
 # get local installation folder paths
-datafolder = res_files(data) / BASEFOLDER
-""" Resolved data folder location """
+datafolder = res_files()
+""" Resolved current folder location """
 # load raw data files
 tables = {t: read_unit_csv(datafolder / f"table{t}.csv") for t in TABLES}
 """ Loaded tables """

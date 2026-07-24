@@ -8,6 +8,8 @@ from astropy.units import Quantity, dimensionless_unscaled, km
 # package imports
 from ..profile import Profile
 
+# no data files to load
+
 # the frequently-used constant values of the Venusian atmosphere
 CO2_MR = Quantity(0.965, dimensionless_unscaled)
 """ CO2 mixing ratio [-] """

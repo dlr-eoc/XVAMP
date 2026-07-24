@@ -12,12 +12,7 @@ from astropy.units import Quantity
 from astropy.table import Table, QTable, hstack
 from scipy.interpolate import LinearNDInterpolator, Akima1DInterpolator
 
-# package imports
-from .. import data
-
-# data location
-BASEFOLDER = "cimino_1982"
-""" Base folder for data """
+# data content
 TABLES = [f"fig{n}raw" for n in ["7", "8", "9"]]
 """ Table numbers to load """
 
@@ -43,8 +38,8 @@ EXTRAPOLATE_DOWN_TO = 200.0
 """ Extrapolate the data down to this temperature [K] """
 
 # get local installation folder paths
-datafolder = res_files(data) / BASEFOLDER
-""" Resolved data folder location """
+datafolder = res_files()
+""" Resolved current folder location """
 # load super-raw data files
 tables = {t: Table.read(datafolder / f"table{t}.csv") for t in TABLES}
 """ Loaded tables """

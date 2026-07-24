@@ -11,13 +11,10 @@ from astropy.units import Quantity
 from astropy.table import hstack, vstack
 
 # package imports
-from .. import data
-from ..utils.io import read_unit_csv
-from ..profile import MultiProfile
+from ...utils.io import read_unit_csv
+from ...profile import MultiProfile
 
-# data location
-BASEFOLDER = "keating_et_al_1985"
-""" Base folder for data """
+# data content
 SZA_TABLES = ["4-4", "4-9", "4-10", "4-11", "4-12", "4-13", "4-5"]
 """ Table numbers that build the SZA-defined datacube between 150-250km """
 TABLES = ["4-6", "4-7", "4-15", "4-16"] + SZA_TABLES
@@ -26,8 +23,8 @@ SZA = Quantity([16, 34, 61, 90, 119, 146, 164], "°")
 """ Solar zenith angles for tables 4-[4, 9-13, 5] [°] """
 
 # get local installation folder paths
-datafolder = res_files(data) / BASEFOLDER
-""" Resolved data folder location """
+datafolder = res_files()
+""" Resolved current folder location """
 # load raw data files
 tables = {t: read_unit_csv(datafolder / f"table{t}.csv") for t in TABLES}
 """ Loaded tables """

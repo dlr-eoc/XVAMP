@@ -10,20 +10,17 @@ from typing import Tuple
 from astropy.units import Quantity
 
 # package imports
-from .. import data
-from ..constants import ESU_CM, SPEC_MOL_M
-from ..utils.io import read_unit_csv
-from ..profile import Profile
+from ...constants import ESU_CM, SPEC_MOL_M
+from ...utils.io import read_unit_csv
+from ...profile import Profile
 
-# data location
-BASEFOLDER = "kolodner_steffes_1998"
-""" Base folder for data """
+# data content
 TABLES = ["fig789"]
 """ Table numbers to load """
 
 # get local installation folder paths
-datafolder = res_files(data) / BASEFOLDER
-""" Resolved data folder location """
+datafolder = res_files()
+""" Resolved current folder location """
 # load raw data files
 tables = {t: read_unit_csv(datafolder / f"table{t}.csv") for t in TABLES}
 """ Loaded tables """

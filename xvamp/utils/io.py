@@ -13,7 +13,7 @@ from astropy.units import Quantity
 from astropy.table import Table, QTable
 
 # package imports
-from .. import data
+from .. import references
 from ..constants import HEADERPATTERN
 from .parametersets import HarveyLemmon2005Parameters, Pitzer1983Parameters
 
@@ -175,7 +175,7 @@ def read_polarization_parameters(
     """
     # check if we should load defaults
     if filename is None:
-        filename = res_files(data) / "default_polarization_parameters.toml"
+        filename = res_files(references) / "default_polarization_parameters.toml"
     # load file
     with open(filename, mode="r") as fp:
         doc = tok.load(fp)

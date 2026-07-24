@@ -29,11 +29,8 @@ from ..references import (
     keating_et_al_1985 as keating1985,
     duan_et_al_2010 as duan2010figures,
     kolodner_steffes_1998 as kolodnersteffes1998,
-    jenkins_et_al_2002 as jenkins2002,
-    magellan_321x as magellan321x,
-    marcq_et_al_2006 as marcq2006,
     james_et_al_1997 as james1997,
-    jpl_spectral_line_catalog as jplspectrallines,
+    jpl_spectral_lines as jplspectrallines,
     cimino_1982 as cimino1982,
     vonzahn_moroz_1985 as zahnmoroz1985,
 )

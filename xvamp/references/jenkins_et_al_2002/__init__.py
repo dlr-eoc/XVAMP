@@ -7,19 +7,16 @@ import numpy as np
 from importlib.resources import files as res_files
 
 # package imports
-from .. import data
-from ..utils.io import read_unit_csv
-from ..profile import Profile
+from ...utils.io import read_unit_csv
+from ...profile import Profile
 
-# data location
-BASEFOLDER = "jenkins_et_al_2002"
-""" Base folder for data """
+# data content
 TABLES = ["fig6raw"]
 """ Table numbers to load """
 
 # get local installation folder paths
-datafolder = res_files(data) / BASEFOLDER
-""" Resolved data folder location """
+datafolder = res_files()
+""" Resolved current folder location """
 # load raw data files
 tables = {t: read_unit_csv(datafolder / f"table{t}.csv") for t in TABLES}
 """ Loaded tables """

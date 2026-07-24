@@ -8,14 +8,11 @@ from importlib.resources import files as res_files
 from astropy.units import Quantity, Unit
 
 # package imports
-from .. import data
-from ..utils.interpolate import BoundedInterpolatingBasis
-from ..utils.io import read_unit_csv
-from ..profile import MultiProfile
+from ...utils.interpolate import BoundedInterpolatingBasis
+from ...utils.io import read_unit_csv
+from ...profile import MultiProfile
 
-# data location
-BASEFOLDER = "paetzold_et_al_2007"
-""" Base folder for data """
+# data content
 DOYS = [196, 200, 202, 212, 218, 233, 234, 239]
 """ Day-of-years of the electron density profiles """
 TABLES = [
@@ -31,8 +28,8 @@ UNIT_EL_DENSITY = Unit("1/m3")
 """ Output unit of the electron density profile [1/m3]"""
 
 # get local installation folder paths
-datafolder = res_files(data) / BASEFOLDER
-""" Resolved data folder location """
+datafolder = res_files()
+""" Resolved current folder location """
 # load raw data files
 tables = {t: read_unit_csv(datafolder / f"table{t}.csv") for t in TABLES}
 """ Loaded tables """

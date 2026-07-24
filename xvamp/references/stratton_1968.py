@@ -1,5 +1,5 @@
 """
-Module that provides the background, reference atmospheric properties.
+Module that provides the atmospheric model from :cite:t:`stratton1968`.
 """
 
 # standard imports

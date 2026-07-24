@@ -11,13 +11,10 @@ from typing import Tuple
 from astropy.table import QTable
 
 # package imports
-from .. import data
-from ..utils.io import read_unit_fwf_desc
-from ..profile import Profile
+from ...utils.io import read_unit_fwf_desc
+from ...profile import Profile
 
-# data location
-BASEFOLDER = "magellan321x"
-""" Base folder for data """
+# data content
 TABLES = ["mgn_abs", "mgn_rtpd"]
 """ Table numbers to load """
 
@@ -59,10 +56,9 @@ DESC_RTPD = [
 STR_CONVERTER = {0: lambda s: s.strip()}
 """ Convenience converter to strip whitespace from the wavelength field """
 
-
 # get local installation folder paths
-datafolder = res_files(data) / BASEFOLDER
-""" Resolved data folder location """
+datafolder = res_files()
+""" Resolved current folder location """
 # load raw data files
 tables = {
     "mgn_abs": read_unit_fwf_desc(datafolder / "mgn_abs.dat", DESC_ABS, STR_CONVERTER),

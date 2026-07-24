@@ -8,12 +8,9 @@ from importlib.resources import files as res_files
 from astropy.units import Quantity
 
 # package imports
-from .. import data
-from ..utils.io import read_unit_csv
+from ...utils.io import read_unit_csv
 
-# data location
-BASEFOLDER = "seiff_et_al_1985"
-""" Base folder for data """
+# data content
 LAT_TABLES = ["1-2a", "1-2b", "1-2c", "1-2d", "1-2e"]
 """ Table numbers of the 33-100km range for different latitudes"""
 TABLES = ["1-1", "1-3"] + LAT_TABLES
@@ -24,8 +21,8 @@ LAT = Quantity([30, 45, 60, 75, 85], "°")
 """ Latitudes of tables 1-2[a-e]"""
 
 # get local installation folder paths
-datafolder = res_files(data) / BASEFOLDER
-""" Resolved data folder location """
+datafolder = res_files()
+""" Resolved current folder location """
 # load raw data files
 tables = {t: read_unit_csv(datafolder / f"table{t}.csv") for t in TABLES}
 """ Loaded tables """
