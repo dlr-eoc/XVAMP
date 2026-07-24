@@ -2280,3 +2280,52 @@ class Duan2010(Model):
         )
         # done
         return Quantity(eps_prime_r, u.dimensionless_unscaled)
+
+
+class Duan2010Verification(Duan2010):
+    """
+    The same as :class:`~Duan2010` except that the defaults follow the Matlab
+    ``config.atm_recipe = 'model_verification'`` setting.
+    """
+
+    def __init__(
+        self,
+        profile_TPD="seiff:75",
+        profile_CO2=zahnmoroz1985.co2_molar_fraction,
+        profile_N2=zahnmoroz1985.n2_molar_fraction,
+        profile_H2O=duan2010figures.h2o_old_molar_fraction,
+        profile_SO2=duan2010figures.so2_old_molar_fraction,
+        profile_CO=duan2010figures.co_old_molar_fraction,
+        profile_H2SO4=kolodnersteffes1998.h2so4_mr_3212,
+        profile_OCS=duan2010figures.ocs_old_molar_fraction,
+        profile_Ar=None,
+        use_clouds_from="none",
+        ocs_abspol_from="duan",
+        use_eps_prime_r_inf=True,
+        load_polarization_parameters=True,
+        use_compressible_gas=True,
+        use_keating_temp_press_above100km=False,
+        use_virial_approximation=True,
+        cutoff_so2_frequency=None,
+        use_cimino_fitted_lookup=False,
+    ):
+        super().__init__(
+            profile_TPD,
+            profile_CO2,
+            profile_N2,
+            profile_H2O,
+            profile_SO2,
+            profile_CO,
+            profile_H2SO4,
+            profile_OCS,
+            profile_Ar,
+            use_clouds_from,
+            ocs_abspol_from,
+            use_eps_prime_r_inf,
+            load_polarization_parameters,
+            use_compressible_gas,
+            use_keating_temp_press_above100km,
+            use_virial_approximation,
+            cutoff_so2_frequency,
+            use_cimino_fitted_lookup,
+        )
