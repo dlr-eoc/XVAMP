@@ -1,5 +1,6 @@
 # define stages explicitly
 stages:
+  - test
   - deploy
 
 variables:
@@ -12,11 +13,10 @@ variables:
   # can also be set to fastest, fast, slow and slowest.
   # If just enabling fastzip is not enough try setting this to fastest or fast.
   ARTIFACT_COMPRESSION_LEVEL: default
-   # same as above, but for caches
+  # same as above, but for caches
   CACHE_COMPRESSION_LEVEL: default
   # will display transfer progress every 5 seconds for artifacts and remote caches.
   TRANSFER_METER_FREQUENCY: 5s
-
 
 # default settings for jobs
 default:
@@ -25,34 +25,56 @@ default:
     - mf-sar-dev
   cache:
     paths:
-    - .condaenv
+      - .condaenv
+
+# run tests
+modeltests:
+  stage: test
+  script:
+    - echo $0
+    - pwd
+    - which python; python --version
+    - which conda; conda --version
+    - eval "$(conda shell.bash hook)"
+    - ACTIVATIONSUCCESS=0
+    - conda activate $(pwd)/.condaenv 2>&1 || ACTIVATIONSUCCESS=$?
+    - if [[ $ACTIVATIONSUCCESS == 0 ]]; then
+      echo "Updating environment";
+      conda env update --prefix=$(pwd)/.condaenv -f environment.yml;
+      else
+      echo "Creating a new environment";
+      conda env create --prefix=$(pwd)/.condaenv -f environment.yml
+      && conda activate $(pwd)/.condaenv;
+      fi
+    - which python; python --version
+    - python -m pip install --upgrade .
 
 # build the documentation
 pages:
   stage: deploy
   script:
-  - echo $0
-  - pwd
-  - which python; python --version
-  - which conda; conda --version
-  - eval "$(conda shell.bash hook)"
-  - ACTIVATIONSUCCESS=0
-  - conda activate $(pwd)/.condaenv 2>&1 || ACTIVATIONSUCCESS=$?
-  - if [[ $ACTIVATIONSUCCESS == 0 ]]; then
-    echo "Updating environment";
-    conda env update --prefix=$(pwd)/.condaenv -f environment.yml;
-    else
-    echo "Creating a new environment";
-    conda env create --prefix=$(pwd)/.condaenv -f environment.yml
-    && conda activate $(pwd)/.condaenv;
-    fi
-  - which python; python --version
-  - python -m pip install --upgrade .[docs]
-  - cd docsrc
-  - sphinx-build -M html . _build
-  - mv _build/html ../public
+    - echo $0
+    - pwd
+    - which python; python --version
+    - which conda; conda --version
+    - eval "$(conda shell.bash hook)"
+    - ACTIVATIONSUCCESS=0
+    - conda activate $(pwd)/.condaenv 2>&1 || ACTIVATIONSUCCESS=$?
+    - if [[ $ACTIVATIONSUCCESS == 0 ]]; then
+      echo "Updating environment";
+      conda env update --prefix=$(pwd)/.condaenv -f environment.yml;
+      else
+      echo "Creating a new environment";
+      conda env create --prefix=$(pwd)/.condaenv -f environment.yml
+      && conda activate $(pwd)/.condaenv;
+      fi
+    - which python; python --version
+    - python -m pip install --upgrade .[docs]
+    - cd docsrc
+    - sphinx-build -M html . _build
+    - mv _build/html ../public
   artifacts:
     paths:
-    - public
+      - public
   only:
-  - main
+    - main
