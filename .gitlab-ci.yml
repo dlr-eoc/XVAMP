@@ -48,7 +48,7 @@ modeltests:
       fi
     - which python; python --version
     - python -m pip install --upgrade .
-    - python -m unittests -v
+    - python -m unittest -v
 
 # build the documentation
 pages:
