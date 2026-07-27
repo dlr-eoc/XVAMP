@@ -4,11 +4,12 @@ Notes on the Implementation
 Reference Model
 ---------------
 
-The reference model :class:`~xvamp.model.Duan2010` is based on :cite:t:`duan2010`.
-To understand what it does and how it is structured, the study should be read first.
-The key quantities that we want out of the model are the absorption coefficient and
-index of refraction as a function of height, since those can be converted to
-the range delay and attenuation, which are needed for the SAR processing.
+The reference model :class:`~xvamp.models.duan_et_al_2010.Duan2010` is based on
+:cite:t:`duan2010`. To understand what it does and how it is structured, the study
+should be read first. The key quantities that we want out of the model are the
+absorption coefficient and index of refraction as a function of height, since those can
+be converted to the range delay and attenuation, which are needed for the SAR
+processing.
 
 Structure
 ^^^^^^^^^
@@ -57,9 +58,9 @@ From an implementation perspective, the code is structured as follows:
       relperm -> ref;
    }
 
-This functionality is provided in the instantiation of a :class:`~xvamp.model.Duan2010`
-model. All input datasets (folder icons) are part of :mod:`~xvamp.reference` and are
-loaded at the package import time.
+This functionality is provided in the instantiation of a
+:class:`~xvamp.models.duan_et_al_2010.Duan2010` model. All input datasets
+are part of :mod:`~xvamp.references` and are loaded at the package import time.
 
 Once the two key quantities (refraction and absorption) are computed as a function
 of altitude, we can compute the quantities actually needed for the SAR processing:
@@ -90,8 +91,8 @@ of altitude, we can compute the quantities actually needed for the SAR processin
    }
 
 This functionality is provided as part of the
-:meth:`~xvamp.model.Model.get_range_attenuation_angles` and
-:func:`~xvamp.utils.geometry_from_central_angle` functions.
+:meth:`~xvamp.models.model.Model.get_range_attenuation_angles` and
+:func:`~xvamp.geometry.geometry_from_central_angle` functions.
 
 For more information about the usage of the code, please see
 :doc:`the Quick Start Notebook </scripts/quickstart>` and the
@@ -152,8 +153,8 @@ if we set
 .. math:: B_{\epsilon,i} = C_i = 0
 
 which in turn also implies :math:`P_\nu = P`. (This equivalence is the reason the
-:class:`~xvamp.model.Duan2010` option ``use_virial_approximation`` has no effect, it
-just changes the notation of the parameters.)
+:class:`~xvamp.models.duan_et_al_2010.Duan2010` option ``use_virial_approximation``
+has no effect, it just changes the notation of the parameters.)
 
 For the species where we have detailed parameters according to the :cite:t:`harvey2005`
 polarization equation, we should make use of them, which means the overall model
@@ -167,17 +168,18 @@ notation) does not require the knowledge of any characteristic volumes.
 On the coding side, both types of describing the polarization parameters are
 implemented:
 
-- :cite:t:`harvey2005` formulation: :meth:`~xvamp.model.Duan2010.eq8` to evaluate,
-  and :meth:`~xvamp.model.Duan2010.A_epsilon_from_eq8` to estimate :math:`A_\epsilon`
-  from a reference polarization.
-- :cite:t:`pitzer1983` formulation: :meth:`~xvamp.model.Duan2010.eq14` to evaluate,
-  and :meth:`~xvamp.model.Duan2010.alpha_T_from_eq14` to estimate :math:`\alpha_T`
-  from a reference polarization.
+- :cite:t:`harvey2005` formulation: :meth:`~xvamp.models.duan_et_al_2010.Duan2010.eq8`
+  to evaluate, and :meth:`~xvamp.models.duan_et_al_2010.Duan2010.A_epsilon_from_eq8` to
+  estimate :math:`A_\epsilon` from a reference polarization.
+- :cite:t:`pitzer1983` formulation: :meth:`~xvamp.models.duan_et_al_2010.Duan2010.eq14`
+  to evaluate, and :meth:`~xvamp.models.duan_et_al_2010.Duan2010.alpha_T_from_eq14` to
+  estimate :math:`\alpha_T` from a reference polarization.
 
 The polarization parameters are evaluted according to the format they're in inside
-:meth:`~xvamp.model.Duan2010.evaluate_polarization_parameters`, and simply summed
-together (since their relative importance to the mixture polarization has already
-been taken into account) in :meth:`~xvamp.model.Duan2010.sum_polarizations`.
+:meth:`~xvamp.models.duan_et_al_2010.Duan2010.evaluate_polarization_parameters`, and
+simply summed together (since their relative importance to the mixture polarization has
+already been taken into account) in
+:meth:`~xvamp.models.duan_et_al_2010.Duan2010.sum_polarizations`.
 
 Modifications
 ^^^^^^^^^^^^^
@@ -215,7 +217,7 @@ was derived explicitly for the Venus conditions. As such, the Cimino model expla
 observed discrepancy between cloud "mass contents derived from the absorption
 coefficient data" and "those measured by [...] the Sounder probe" (section 9).
 Therefore, the Cimino model is preferred, and also implemented in XVAMP.
-However, the paper version is available as an option (``use_cimino_clouds=False``).
+However, the paper version is available as an option (``use_clouds_from="duan"``).
 
 .. important::
 
@@ -265,12 +267,12 @@ on some unnecessary assumptions to derive the polarizability :math:`A_\epsilon`.
 The present code addresses this by instead following the polarization computation
 approach suggested by the study which provides the necessary experimental data,
 :cite:t:`kolodner1998`, Section 3.2. This approach is implemented in
-:meth:`~xvamp.reference.KolodnerSteffes1998.get_eps_prime_r_and_molar_density`
+:mod:`~xvamp.references.kolodner_steffes_1998`
 (to derive the mass density and the real part of the relative permittivity of H2SO4)
 and then completed in a general sense in
-:meth:`~xvamp.model.Duan2010.get_polarization_parameters` (to compute the
-polarization parameters that can then be evaluated at given molar densities and
-temperatures of the atmospheric column).
+:meth:`~xvamp.models.duan_et_al_2010.Duan2010.compute_polarization_parameters` (to
+compute the polarization parameters that can then be evaluated at given molar densities
+and temperatures of the atmospheric column).
 
 .. note::
 

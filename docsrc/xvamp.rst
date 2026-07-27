@@ -7,6 +7,9 @@ The following modules are provided by XVAMP:
    :titlesonly:
 
    xvamp/constants
+   xvamp/geometry
+   xvamp/models
+   xvamp/profile
+   xvamp/references
    xvamp/utils
-   xvamp/reference
-   xvamp/model
+

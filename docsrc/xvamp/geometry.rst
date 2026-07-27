@@ -1,0 +1,4 @@
+Geometry
+========
+
+.. automodule:: xvamp.geometry

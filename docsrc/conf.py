@@ -47,12 +47,12 @@ nitpicky = True
 
 # intersphinx settings
 intersphinx_mapping = {
-    "python": ("https://docs.python.org/3.13/", None),
-    "numpy": ("https://numpy.org/doc/2.2/", None),
-    "scipy": ("https://docs.scipy.org/doc/scipy-1.15.2/", None),
-    "pandas": ("https://pandas.pydata.org/pandas-docs/version/2.3/", None),
-    "matplotlib": ("https://matplotlib.org/3.10.1/", None),
-    "astropy": ("https://docs.astropy.org/en/stable/", None),
+    "python": ("https://docs.python.org/3.14/", None),
+    "numpy": ("https://numpy.org/doc/2.5/", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy-1.18.0/", None),
+    "pandas": ("https://pandas.pydata.org/pandas-docs/version/3.0/", None),
+    "matplotlib": ("https://matplotlib.org/3.11.1/", None),
+    "astropy": ("https://docs.astropy.org/en/v8.0.1/", None),
 }
 
 # allow the reusing of 'Classes' and 'Functions' section labels by
@@ -71,6 +71,9 @@ autodoc_default_options = {
     "member-order": "groupwise",
     "class-doc-from": "both",
     "special-members": "__call__",
+    "undoc-members": False,
+    "show-inheritance": True,
+    "exclude-members": "datafolder, tables",
 }
 
 # for the bibliography

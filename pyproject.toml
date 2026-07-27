@@ -37,4 +37,10 @@ docs = [
 packages = ["xvamp"]
 
 [tool.setuptools.package-data]
-xvamp = ["data/*/*.md", "data/*/*.txt", "data/*/*.csv", "data/*/*.cat", "data/*.toml"]
+xvamp = [
+    "references/*/*.md",
+    "references/*/*.txt",
+    "references/*/*.csv",
+    "references/*/*.cat",
+    "references/*.toml",
+]
