@@ -186,9 +186,9 @@ class Profile:
                 )
         # apply scaling to data
         if log:
-            self.data += np.log10(scale)
+            self.data = self.data + np.log10(scale)
         else:
-            self.data *= scale
+            self.data = self.data * scale
         # save settings
         self.log = log
         self.lower = lower
