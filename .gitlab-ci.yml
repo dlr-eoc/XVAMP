@@ -23,6 +23,23 @@ variables:
 # default settings for jobs
 default:
   image: condaforge/mambaforge:latest
+  before_script:
+    - echo $0
+    - pwd
+    - which python; python --version
+    - which conda; conda --version
+    - eval "$(conda shell.bash hook)"
+    - ACTIVATIONSUCCESS=0
+    - conda activate $(pwd)/.condaenv 2>&1 || ACTIVATIONSUCCESS=$?
+    - if [[ $ACTIVATIONSUCCESS == 0 ]]; then
+      echo "Updating environment";
+      conda env update --prefix=$(pwd)/.condaenv -f environment.yml;
+      else
+      echo "Creating a new environment";
+      conda env create --prefix=$(pwd)/.condaenv -f environment.yml
+      && conda activate $(pwd)/.condaenv;
+      fi
+    - which python; python --version
   tags:
     - mf-sar-dev
   cache:
@@ -33,22 +50,6 @@ default:
 modeltests:
   stage: test
   script:
-    - echo $0
-    - pwd
-    - which python; python --version
-    - which conda; conda --version
-    - eval "$(conda shell.bash hook)"
-    - ACTIVATIONSUCCESS=0
-    - conda activate $(pwd)/.condaenv 2>&1 || ACTIVATIONSUCCESS=$?
-    - if [[ $ACTIVATIONSUCCESS == 0 ]]; then
-      echo "Updating environment";
-      conda env update --prefix=$(pwd)/.condaenv -f environment.yml;
-      else
-      echo "Creating a new environment";
-      conda env create --prefix=$(pwd)/.condaenv -f environment.yml
-      && conda activate $(pwd)/.condaenv;
-      fi
-    - which python; python --version
     - python -m pip install --upgrade .
     - python -m unittest -v
 
@@ -56,22 +57,6 @@ modeltests:
 pages:
   stage: deploy
   script:
-    - echo $0
-    - pwd
-    - which python; python --version
-    - which conda; conda --version
-    - eval "$(conda shell.bash hook)"
-    - ACTIVATIONSUCCESS=0
-    - conda activate $(pwd)/.condaenv 2>&1 || ACTIVATIONSUCCESS=$?
-    - if [[ $ACTIVATIONSUCCESS == 0 ]]; then
-      echo "Updating environment";
-      conda env update --prefix=$(pwd)/.condaenv -f environment.yml;
-      else
-      echo "Creating a new environment";
-      conda env create --prefix=$(pwd)/.condaenv -f environment.yml
-      && conda activate $(pwd)/.condaenv;
-      fi
-    - which python; python --version
     - python -m pip install --upgrade .[docs]
     - cd docsrc
     - sphinx-build -M html . _build
