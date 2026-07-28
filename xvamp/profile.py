@@ -198,6 +198,16 @@ class Profile:
     def __len__(self) -> int:
         return self.index.size
 
+    @property
+    def shape(self) -> tuple[int, int]:
+        """Shape of :attr:`~index` and :attr:`~data`"""
+        return (self.index.size,)
+
+    @property
+    def size(self) -> int:
+        """Number of elements in :attr:`~index` and :attr:`~data` (each)"""
+        return self.index.size
+
     def __str__(self) -> str:
         return (
             f"Profile of length {len(self)} with\n"
@@ -507,6 +517,22 @@ class MultiProfile:
 
     def __len__(self) -> int:
         return len(self.data_names)
+
+    @property
+    def shape(self) -> tuple[int, int]:
+        """
+        Equivalent shape of the data subprofile,
+        i.e. (length of index, number of data columns)
+        """
+        return (self.index.size, len(self))
+
+    @property
+    def size(self) -> int:
+        """
+        Equivalent size of the data subprofile,
+        i.e. (length of index * number of data columns)
+        """
+        return self.index.size * len(self)
 
     def __str__(self) -> str:
         return (
