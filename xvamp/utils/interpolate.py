@@ -5,7 +5,6 @@ Interpolation helper functions.
 # standard imports
 import numpy as np
 from dataclasses import dataclass, field
-from numpy.typing import NDArray
 
 
 @dataclass
@@ -28,7 +27,7 @@ class BoundedInterpolatingBasis:
 
     lower: float
     upper: float
-    knots: NDArray[np.floating]
+    knots: np.ndarray[np.floating]
 
     def __post_init__(self):
         # input check
@@ -42,7 +41,7 @@ class BoundedInterpolatingBasis:
         """Number of basis functions"""
         return self.knots.size
 
-    def __call__(self, nodes: NDArray[np.floating]) -> NDArray[np.floating]:
+    def __call__(self, nodes: np.ndarray[np.floating]) -> np.ndarray[np.floating]:
         """
         Compute the basis functions that interpolates
         between knot-anchored models at given input nodes.
@@ -103,7 +102,7 @@ class PeriodicInterpolatingBasis:
     # input parameters
     lower: float
     upper: float
-    knots: NDArray[np.floating]
+    knots: np.ndarray[np.floating]
     const_between_indices: list[tuple] = field(default_factory=list)
 
     # internal values
@@ -136,7 +135,7 @@ class PeriodicInterpolatingBasis:
         """Number of basis functions"""
         return len(self.output_columns)
 
-    def __call__(self, nodes: NDArray[np.floating]) -> NDArray[np.floating]:
+    def __call__(self, nodes: np.ndarray[np.floating]) -> np.ndarray[np.floating]:
         """
         Compute the basis functions that linearly interpolate
         between knot-anchored models at given input nodes.

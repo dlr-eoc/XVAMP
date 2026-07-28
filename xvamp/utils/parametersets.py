@@ -118,9 +118,9 @@ class Pitzer1983Parameters:
     per molar volume as given by :cite:t:`duan2010` on p. 5, eq. (14).
     """
 
-    mu: Quantity[ESU_CM]
+    mu: Quantity
     """ Molecular dipole moment [esu cm = 1e18 D] """
-    alpha_T: Quantity["cm3"]
+    alpha_T: Quantity["volume"]
     """ Molecular polarizability [cm^3] """
 
     def __eq__(self, other: HarveyLemmon2005Parameters | Pitzer1983Parameters):
@@ -165,17 +165,17 @@ class LineShapeParameters:
     :attr:`~LineShapeParameters.gamma_min_min`.
     """
 
-    T_0: Quantity["K"]
+    T_0: Quantity["temperature"]
     """ Reference temperature of broadening coefficients [K] """
-    gamma_min_min: Quantity["MHz/torr"]
+    gamma_min_min: Quantity
     """ Self-broadened linewidth parameter [MHz/torr] """
-    gamma_min_maj: Quantity["MHz/torr"] = Quantity(0, "MHz/torr")
+    gamma_min_maj: Quantity = Quantity(0, "MHz/torr")
     """ Foreign-broadened linewidth parameter [MHz/torr] """
-    zeta_min_min: Quantity["MHz/torr"] = Quantity(0, "MHz/torr")
+    zeta_min_min: Quantity = Quantity(0, "MHz/torr")
     """ Self-coupling linewidth parameter [MHz/torr] """
-    zeta_min_maj: Quantity["MHz/torr"] = Quantity(0, "MHz/torr")
+    zeta_min_maj: Quantity = Quantity(0, "MHz/torr")
     """ Foreign-coupling parameter [MHz/torr] """
-    delta_min: Quantity["MHz/torr"] = Quantity(0, "MHz/torr")
+    delta_min: Quantity = Quantity(0, "MHz/torr")
     """ Frequency shift parameter [MHz/torr] """
     m: float = 0.0
     """ Temperature dependence of the coupling [-] """

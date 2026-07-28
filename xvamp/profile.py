@@ -7,14 +7,14 @@ inter- and extrapolation of any type of profile.
 from __future__ import annotations
 import numpy as np
 from typing import List, Any
-from numpy.typing import NDArray
 from pandas import DataFrame
-from astropy.units import Quantity, Unit, UnitsError, get_physical_type
+from astropy.units import Quantity, Unit, get_physical_type
+from astropy.units.errors import UnitsError
 from astropy.table import QTable
 
 
 # helper function
-def cast_to_np(input: Any | Quantity, unit: str) -> Any | NDArray[np.floating]:
+def cast_to_np(input: Any | Quantity, unit: str) -> Any | np.ndarray[np.floating]:
     """
     Convert a :class:`~astropy.units.Quantity` into a NumPy array of [unit],
     or simply return the input if it's not a :class:`~astropy.units.Quantity`.
@@ -39,7 +39,7 @@ def check_physical_type(
     Parameters
     ----------
     p
-        :class:`~profile` to check
+        :class:`~Profile` to check
     data_physical_type
         Desired physical type of the data
     index_physical_type
@@ -49,7 +49,7 @@ def check_physical_type(
 
     Raises
     ------
-    UnitsError
+    astropy.units.errors.UnitsError
         If the data (and/or index) is of the wrong physical type
     """
     msg_suffix = f" in {name}" if name is not None else ""
@@ -62,10 +62,44 @@ def check_physical_type(
 
 
 class Profile:
+    """
+    Class providing interfaces to loading and interpolating generic atmospheric
+    profiles.
 
-    index: NDArray[np.floating]
+    Parameters
+    ----------
+    index
+        Index nodes (e.g., altitudes) at which ``data`` values are present.
+        If not a :class:`~astropy.units.Quantity`, ``index_unit`` must be set.
+    data
+        Data nodes (e.g., pressure or mixing ratio) at the ``index`` locations.
+        If not a :class:`~astropy.units.Quantity`, ``data_unit`` must be set.
+    index_unit
+        Unit of ``index``. Ignored if ``index`` is a
+        :class:`~astropy.units.Quantity`, required if it is not.
+    data_unit
+        Unit of ``index``. Ignored if ``index`` is a
+        :class:`~astropy.units.Quantity`, required if it is not.
+    scale
+        Scaling factor to apply to data (in linear space)
+    log
+        Set to ``True`` if the input nodes are in logarithmic space,
+        so that the output is transformed back to linear space
+    lower
+        Set the lower (left) values outside of the interpolating range to this
+        value (default ``0``). Set to ``None`` to use the leftmost valid value
+        (see :func:`numpy.interp` ``left`` parameter with different default).
+    upper
+        Set the upper (right) values outside of the interpolating range to this
+        value (default ``0``). Set to ``None`` to use the rightmost valid value
+        (see :func:`numpy.interp` ``right`` parameter with different default).
+    check
+        Check the input shapes and index monotonicity.
+    """
+
+    index: np.ndarray[np.floating]
     """ Index nodes of data """
-    data: NDArray[np.floating]
+    data: np.ndarray[np.floating]
     """ Data values at the indices """
     index_unit: Unit
     """ Unit of :attr:`~index` """
@@ -73,15 +107,15 @@ class Profile:
     """ Unit of :attr:`~data` """
     log: bool
     """ Whether :attr:`~data` is saved in logarithmic space """
-    lower_constant: bool
-    """ Sets downward continuation to constant rather than 0 """
-    upper_constant: bool
-    """ Sets downward continuation to constant rather than 0 """
+    lower: float | None
+    """ Sets downward continuation to this value or last valid one """
+    upper: float | None
+    """ Sets downward continuation to this value or last valid one """
 
     def __init__(
         self,
-        index: NDArray[np.floating] | Quantity,
-        data: NDArray[np.floating] | Quantity,
+        index: np.ndarray[np.floating] | Quantity,
+        data: np.ndarray[np.floating] | Quantity,
         index_unit: Unit | str | None = None,
         data_unit: Unit | str | None = None,
         scale: float = 1.0,
@@ -90,40 +124,6 @@ class Profile:
         upper: float | None = 0.0,
         check: bool = True,
     ):
-        """
-        Class providing interfaces to loading and interpolating generic atmospheric
-        profiles.
-
-        Parameters
-        ----------
-        index
-            Index nodes (e.g., altitudes) at which ``data`` values are present.
-            If not a :class:`~astropy.units.Quantity`, ``index_unit`` must be set.
-        data
-            Data nodes (e.g., pressure or mixing ratio) at the ``index`` locations.
-            If not a :class:`~astropy.units.Quantity`, ``data_unit`` must be set.
-        index_unit
-            Unit of ``index``. Ignored if ``index`` is a
-            :class:`~astropy.units.Quantity`, required if it is not.
-        data_unit
-            Unit of ``index``. Ignored if ``index`` is a
-            :class:`~astropy.units.Quantity`, required if it is not.
-        scale
-            Scaling factor to apply to data (in linear space)
-        log
-            Set to ``True`` if the input nodes are in logarithmic space,
-            so that the output is transformed back to linear space
-        lower
-            Set the lower (left) values outside of the interpolating range to this
-            value (default ``0``). Set to ``None`` to use the leftmost valid value
-            (see :func:`numpy.interp` ``left`` parameter with different default).
-        upper
-            Set the upper (right) values outside of the interpolating range to this
-            value (default ``0``). Set to ``None`` to use the rightmost valid value
-            (see :func:`numpy.interp` ``right`` parameter with different default).
-        check
-            Check the input shapes and index monotonicity.
-        """
         # save index
         if isinstance(index, Quantity):
             self.index = index.value
@@ -208,21 +208,22 @@ class Profile:
             f"- upper={self.upper}"
         )
 
-    def __call__(self, new_index: NDArray[np.floating] | Quantity) -> Quantity:
+    def evaluate(self, new_index: np.ndarray[np.floating] | Quantity) -> Quantity:
         """
-        Linearly interpolates the profile data (either in linear or logarithmic space,
-        depending on how it is stored, see :attr:`~log`) onto a new index given the
-        down- and upward continuation settings in :attr:`~lower` and :attr:`~upper`.
+        Linearly inter- or extrapolates the profile data (either in linear or
+        logarithmic space, depending on how it is stored, see :attr:`~Profile.log`)
+        onto a new index given the down- and upward continuation settings in
+        :attr:`~Profile.lower` and :attr:`~Profile.upper`.
 
         Parameters
         ----------
         new_index
             New index values (if not a :class:`~astropy.units.Quantity`, must already
-            be in the unit of this profile [:attr:`~index_unit`])
+            be in the unit of this profile [:attr:`~Profile.index_unit`])
 
         Returns
         -------
-            New data values in [:attr:`~data_unit`]
+            New data values in [:attr:`~Profile.data_unit`]
         """
         # make sure we have the right index units
         new_index = cast_to_np(new_index, self.index_unit)
@@ -258,42 +259,86 @@ class Profile:
 
     @property
     def index_as_quantity(self) -> Quantity:
-        """Return the index as a :class:`~astropy.unit.Quantity`."""
+        """Return the index as a :class:`~astropy.units.Quantity`."""
         return Quantity(self.index, self.index_unit)
 
-    def index_to(self, unit: Unit | str | None = None) -> NDArray[np.floating]:
+    def index_to(self, unit: Unit | str | None = None) -> np.ndarray[np.floating]:
         """
         Return the index as as an array in a given unit.
 
         Parameters
         ----------
         unit
-            If not a string or :class:`astropy.unit.Unit`, the :attr:`~index_unit`
-            is assumed.
+            If not a string or :class:`astropy.units.Unit`, the
+            :attr:`~Profile.index_unit` is assumed.
         """
         return self.index_as_quantity.to_value(unit)
 
     @property
     def as_quantity(self) -> Quantity:
-        """Return the data as a :class:`~astropy.unit.Quantity`."""
+        """Return the data as a :class:`~astropy.units.Quantity`."""
         return Quantity(self.data, self.data_unit)
 
-    def to(self, unit: Unit | str | None = None) -> NDArray[np.floating]:
+    def to(self, unit: Unit | str | None = None) -> np.ndarray[np.floating]:
         """
         Return the data as as an array in a given unit.
 
         Parameters
         ----------
         unit
-            If not a string or :class:`astropy.unit.Unit`, the :attr:`~data_unit`
-            is assumed.
+            If not a string or :class:`astropy.units.Unit`, the
+            :attr:`~Profile.data_unit` is assumed.
         """
         return self.as_quantity.to_value(unit)
 
 
 class MultiProfile:
+    """
+    Class providing an interface to define multiple :class:`~Profile` with a
+    shared index.
 
-    index: NDArray[np.floating]
+    Parameters
+    ----------
+    index
+        Index nodes (e.g., altitudes) at which ``data`` values are present.
+        If not a :class:`~astropy.units.Quantity`, ``index_unit`` must be set.
+    data
+        Data nodes (e.g., pressure or mixing ratio) at the ``index`` locations.
+        If not a :class:`~astropy.units.Quantity`, ``data_units`` must be set.
+        If ``data`` is a 2D NumPy array, ``index`` applies to the first axis
+        (matching the :class:`~astropy.table.QTable` layout).
+    index_unit
+        Unit of ``index``. Ignored if ``index`` is a
+        :class:`~astropy.units.Quantity`, required if it is not.
+    data_units
+        Unit(s) of ``data``. Ignored if ``data`` is a
+        :class:`~astropy.units.Quantity` or :class:`~astropy.table.QTable`,
+        required if it is not.
+        If a single unit and the data is 2D, the unit is applied to all.
+    data_names
+        List of names of the data column(s). Required if ``data`` is not a
+        :class:`~astropy.table.QTable`, otherwise it is optional and would override
+        the column names.
+    scales
+        Scaling factor to apply to data (in linear space).
+        If a single factor and the data is 2D, the factor is applied to all.
+    log
+        Set to ``True`` if the input data nodes are in logarithmic space,
+        so that the output is transformed back to linear space.
+        If a single flag and the data is 2D, the flag is applied to all.
+    lower
+        Set the lower (left) values outside of the interpolating range to this
+        value (default ``0``). Set to ``None`` to use the leftmost valid value (see
+        :func:`numpy.interp` ``left`` parameter with different default).
+        If a single flag and the data is 2D, the flag is applied to all.
+    upper
+        Set the upper (right) values outside of the interpolating range to this
+        value (default ``0``). Set to ``None`` to use the rightmost valid value (see
+        :func:`numpy.interp` ``right`` parameter with different default).
+        If a single flag and the data is 2D, the flag is applied to all.
+    """
+
+    index: np.ndarray[np.floating]
     """ Index nodes of data """
     index_unit: Unit
     """ Unit of :attr:`~index` """
@@ -303,8 +348,8 @@ class MultiProfile:
 
     def __init__(
         self,
-        index: NDArray[np.floating] | Quantity,
-        data: NDArray[np.floating] | Quantity | QTable,
+        index: np.ndarray[np.floating] | Quantity,
+        data: np.ndarray[np.floating] | Quantity | QTable,
         index_unit: Unit | str | None = None,
         data_units: List[Unit] | Unit | str | None = None,
         data_names: List[str] | None = None,
@@ -313,50 +358,6 @@ class MultiProfile:
         lower: List[float] | float | None = 0.0,
         upper: List[float] | float | None = 0.0,
     ):
-        """
-        Class providing an interface to define multiple :class:`~Profile`s with a
-        shared index.
-
-        Parameters
-        ----------
-        index
-            Index nodes (e.g., altitudes) at which ``data`` values are present.
-            If not a :class:`~astropy.units.Quantity`, ``index_unit`` must be set.
-        data
-            Data nodes (e.g., pressure or mixing ratio) at the ``index`` locations.
-            If not a :class:`~astropy.units.Quantity`, ``data_units`` must be set.
-            If ``data`` is a 2D NumPy array, ``index`` applies to the first axis
-            (matching the :class:`~astropy.table.QTable` layout).
-        index_unit
-            Unit of ``index``. Ignored if ``index`` is a
-            :class:`~astropy.units.Quantity`, required if it is not.
-        data_units
-            Unit(s) of ``data``. Ignored if ``data`` is a
-            :class:`~astropy.units.Quantity` or :class:`~astropy.table.QTable`,
-            required if it is not.
-            If a single unit and the data is 2D, the unit is applied to all.
-        data_names
-            List of names of the data column(s). Required if ``data`` is not a
-            :class:`~astropy.table.QTable`, otherwise it is optional and would override
-            the column names.
-        scales
-            Scaling factor to apply to data (in linear space).
-            If a single factor and the data is 2D, the factor is applied to all.
-        log
-            Set to ``True`` if the input data nodes are in logarithmic space,
-            so that the output is transformed back to linear space.
-            If a single flag and the data is 2D, the flag is applied to all.
-        lower
-            Set the lower (left) values outside of the interpolating range to this
-            value (default ``0``). Set to ``None`` to use the leftmost valid value (see
-            :func:`numpy.interp` ``left`` parameter with different default).
-            If a single flag and the data is 2D, the flag is applied to all.
-        upper
-            Set the upper (right) values outside of the interpolating range to this
-            value (default ``0``). Set to ``None`` to use the rightmost valid value (see
-            :func:`numpy.interp` ``right`` parameter with different default).
-            If a single flag and the data is 2D, the flag is applied to all.
-        """
         # save index
         if isinstance(index, Quantity):
             self.index = index.value
@@ -516,15 +517,16 @@ class MultiProfile:
             )
         )
 
-    def __call__(self, new_index: NDArray[np.floating] | Quantity) -> QTable:
+    def evaluate(self, new_index: np.ndarray[np.floating] | Quantity) -> QTable:
         """
-        Linearly interpolates all subprofiles onto a new index.
+        Inter- or extrapolate all subprofiles onto a new index,
+        respecting their data space and continuation settings.
 
         Parameters
         ----------
         new_index
             New index values (if not a :class:`~astropy.units.Quantity`, must already
-            be in the unit of this profile [:attr:`~index_unit`])
+            be in the unit of this profile [:attr:`~Profile.index_unit`])
 
         Returns
         -------
@@ -535,17 +537,17 @@ class MultiProfile:
 
     @property
     def index_as_quantity(self) -> Quantity:
-        """Return the index as a :class:`~astropy.unit.Quantity`."""
+        """Return the index as a :class:`~astropy.units.Quantity`."""
         return Quantity(self.index, self.index_unit)
 
-    def index_to(self, unit: Unit | str | None = None) -> NDArray[np.floating]:
+    def index_to(self, unit: Unit | str | None = None) -> np.ndarray[np.floating]:
         """
         Return the index as as an array in a given unit.
 
         Parameters
         ----------
         unit
-            If not a string or :class:`astropy.unit.Unit`, the :attr:`~index_unit`
-            is assumed.
+            If not a string or :class:`astropy.units.Unit`, the
+            :attr:`~Profile.index_unit` is assumed.
         """
         return self.index_as_quantity.to_value(unit)

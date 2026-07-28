@@ -38,6 +38,146 @@ from .model import Model
 
 # Model class that implements the Duan et al. (2010) paper
 class Duan2010(Model):
+    """
+    Initialize the :cite:t:`duan2010` model. All parameters are set such that
+    they correspond to the Matlab ``config.atm_recipe = 'all_standard'`` setting.
+
+    Parameters
+    ----------
+    profile_TPD
+        Which temperature, pressure, and density profile to use:
+
+        - ``"duan"``: A combination of :cite:t:`seiff1985` and :cite:t:`zasova2006`
+          as described in the paper, Section 3.1 (i.e., including the 3 K offset).
+        - ``"seiff:x"``: A specific profile of :cite:t:`seiff1985` for a given
+          latitude *x* (valid values: 30, 45, 60, 75, 85) in degrees.
+
+        Note that these preconfigured profiles are all downward-continued to
+        negative altitudes, and are influenced by the the parameters
+        ``use_compressible_gas`` and ``use_keating_temp_press_above100km``.
+        Alternatively, a :class:`xvamp.profile.MultiProfile` with the data columns
+        ``"temperature"``, ``"pressure"``, and optionally ``"mass_density"``
+        (and the index being the altitude).
+    profile_CO2
+        CO2 molar fraction profile.
+    profile_N2
+        N2 molar fraction profile.
+    profile_H2O
+        H2O molar fraction profile.
+    profile_SO2
+        SO2 molar fraction profile.
+    profile_CO
+        CO molar fraction profile.
+    profile_H2SO4
+        H2SO4 molar fraction profile. Preconfigured options are:
+
+        - :attr:`~xvamp.references.duan_et_al_2010.h2so4_molar_fraction` or
+          :attr:`~xvamp.references.duan_et_al_2010.h2so4_3212_molar_fraction`
+          from :cite:t:`duan2010` and the reference code.
+        - :attr:`~xvamp.references.kolodner_steffes_1998.h2so4_mr_mean` (mean) or
+          :attr:`~xvamp.references.kolodner_steffes_1998.h2so4_mr_3212` (where
+          ``3212``, ``3213`` and ``3214`` are individual orbits) from
+          :cite:t:`kolodner1998`, Figs. 7-9. This option adds about a tenth of a
+          dB attenuation and removes about 4 mm of delay.
+        - :attr:`~xvamp.references.jenkins_et_al_2002.h2so4_molar_fraction_0ppm_so2`
+          (where ``0``, ``50``, ``100``, ``150``, ``200`` are assumptions about the SO2
+          content) from :cite:t:`jenkins2002`. This changes the
+          attenuation by about a tenth of a dB and the delay by some millimeters.
+        - :attr:`~xvamp.references.magellan321x.h2so4_mr_x_3212` (where
+          ``3212``, ``3213`` and ``3214`` are individual orbits) from
+          :cite:t:`jenkins1996a`.  This changes the
+          attenuation by about a dB and the delay of some millimeters.
+    profile_OCS
+        OCS molar fraction profile. Preconfigured options are:
+
+        - :attr:`~xvamp.references.duan_et_al_2010.co_molar_fraction`
+        - :attr:`~xvamp.references.marcq_et_al_2006.ocs_mr` from :cite:t:`marcq2006`
+
+        This has a range delay effect on the sub-millimeter scale, and an effect
+        on the two-way attenuation on the millidecibel scale.
+    profile_Ar
+        Argon molar fraction profile. The default is not to add Argon to the
+        mixture, but a preconfigured (constant) profile is
+        :attr:`~xvamp.references.vonzahn_moroz_1985.ar_molar_fraction`.
+        This has a range delay effect on the sub-micrometer scale, and an effect
+        on the two-way attenuation on the tens of microdecibel scale.
+    use_clouds_from
+        Define which cloud polarization and absorption model to use:
+
+        - ``"cimino"``: :cite:t:`cimino1982`, eq. (10) and (16)
+        - ``"duan"``: :cite:t:`duan2010`, sections 2.1.5 and 2.2.5
+        - ``"none"``: Ignore all cloud effects
+
+        See the notes on the importance of this parameter at
+        :ref:`implementation:Cloud polarization and absorption`.
+    use_compressible_gas
+        Whether to use the gas compressibility factor when deriving the mass
+        density for the 0-100 km altitude range, or assume the ideal gas law.
+        This only affects the attenuation of the cloud layer, since all other
+        species quantities are derived from the pressure profile, which is directly
+        loaded from :cite:t:`seiff1985` and :cite:t:`zasova2006`.
+        The attenuation difference is about 2 millidecibels.
+        If a :class:`xvamp.profile.MultiProfile` is passed as the ``profile_TPD``
+        parameter and contains a mass density, ``use_compressible_gas`` is ignored.
+    ocs_abspol_from
+        Define which model to use to compute the absorption and polarization
+        profiles of OCS.
+
+        - ``"duan"``: Using a Ben-Reuven line shape derived from SO2 (default)
+        - ``"kolbe"``: Using a Lorentzian line shape as described in the paper
+          and following :cite:t:`kolbe1977`
+        - ``"bbld"``: Using a Ben-Reuven line shape with parameters derived
+          approximately from :cite:t:`bouanich1988` and :cite:t:`lavrentieva2020`.
+
+        Since OCS is such a minor constituent, the different options have a
+        sub-millimeter effect on the delay and a milli-decibel effect on the
+        attenuation. If changing the default, then also set
+        ``load_polarization_parameters=False``, as the setting affects the
+        polarization parameters.
+    use_eps_prime_r_inf
+        If ``True``, when computing the real part of the relative permittivity
+        of SO2 and OCS, a value of the real relative permittivity at infinite
+        frequency is set to an assumed value (rather than using the theoretical
+        value of unity). This only has an effect if
+        ``load_polarization_parameters=False``, because the polarization parameters
+        resulting from the real part of the relative permittivity are stored.
+        This option has a centimeter-level effect on the delay and changes the
+        attenuation by micro-decibels.
+    load_polarization_parameters
+        By default, the polarization parameters are loaded from a prepackaged
+        configuration file (in ``"data/default_polarization_parameters.toml"``).
+        If set to ``False``, they are recomputed with the current settings.
+        If set to a filename, the parameters are loaded from there.
+
+    Other Parameters
+    ----------------
+    use_keating_temp_press_above100km
+        Only used if ``profile_TPD`` is not a :class:`xvamp.profile.MultiProfile`.
+        Whether to use the temperature profile from :cite:t:`keating1985`
+        above 100 km, and get its matching pressure profile from the
+        ideal gas law.
+        This option has no effect on the model, since the transition between
+        atmosphere- and ionosphere-dominated permittivity profiles is at 100 km,
+        and the ionosphere is modeled differently. It is only useful if one
+        wants to load these quantities for later plotting.
+    use_virial_approximation
+        Whether to use the leading terms of the virial approximation to calculate
+        the total polarization of the polar species :cite:p:`harvey2005`,
+        or to use the polarization relationship by :cite:t:`pitzer1983`.
+        These two approaches are numerically fully equivalent.
+    cutoff_so2_frequency
+        When computing the absorption coefficient of SO2, include all spectral
+        lines up to this frequency. If ``None``, use all available ones.
+        This option is only kept for development purposes.
+    use_cimino_fitted_lookup
+        Whether to estimate the complex permittivity of gaseous H2SO4 from
+        lookup tables and then pre-fitted analytical extrapolation functions,
+        or to numerically inter- and extrapolate.
+        This option is only kept for development purposes, since the pre-fitted
+        model is flawed. Regardless, this options only has a range delay effect
+        on the sub-micrometer scale, and an effect on the two-way attenuation
+        on the millidecibel scale.
+    """
 
     # general constants
     VENUS_GAS_CONSTANT = Quantity(191.4, "J/kg K")
@@ -238,146 +378,6 @@ class Duan2010(Model):
         cutoff_so2_frequency: Quantity["frequency"] | None = None,
         use_cimino_fitted_lookup: bool = False,
     ) -> None:
-        """
-        Initialize the :cite:t:`duan2010` model. All parameters are set such that
-        they correspond to the Matlab ``config.atm_recipe = 'all_standard'`` setting.
-
-        Parameters
-        ----------
-        profile_TPD
-            Which temperature, pressure, and density profile to use:
-
-            - ``"duan"``: A combination of :cite:t:`seiff1985` and :cite:t:`zasova2006`
-              as described in the paper, Section 3.1 (i.e., including the 3 K offset).
-            - ``"seiff:x"``: A specific profile of :cite:t:`seiff1985` for a given
-              latitude *x* (valid values: 30, 45, 60, 75, 85) in degrees.
-
-            Note that these preconfigured profiles are all downward-continued to
-            negative altitudes, and are influenced by the the parameters
-            ``use_compressible_gas`` and ``use_keating_temp_press_above100km``.
-            Alternatively, a :class:`xvamp.profile.MultiProfile` with the data columns
-            ``"temperature"``, ``"pressure"``, and optionally ``"mass_density"``
-            (and the index being the altitude).
-        profile_CO2
-            CO2 molar fraction profile.
-        profile_N2
-            N2 molar fraction profile.
-        profile_H2O
-            H2O molar fraction profile.
-        profile_SO2
-            SO2 molar fraction profile.
-        profile_CO
-            CO molar fraction profile.
-        profile_H2SO4
-            H2SO4 molar fraction profile. Preconfigured options are:
-
-            - :attr:`~xvamp.references.duan2010figures.h2so4_molar_fraction` or
-              :attr:`~xvamp.references.duan2010figures.h2so4_3212_molar_fraction`
-              from :cite:t:`duan2010` and the reference code.
-            - :attr:`~xvamp.references.kolodnersteffes1998.h2so4_mr_mean` (mean) or
-              :attr:`~xvamp.references.kolodnersteffes1998.h2so4_mr_3212` (where
-              ``3212``, ``3213`` and ``3214`` are individual orbits) from
-              :cite:t:`kolodner1998`, Figs. 7-9. This option adds about a tenth of a
-              dB attenuation and removes about 4 mm of delay.
-            - :attr:`~xvamp.references.jenkins2002.h2so4_molar_fraction_0ppm_so2` (where
-              ``0``, ``50``, ``100``, ``150``, ``200`` are assumptions about the SO2
-              content) from :cite:t:`jenkins2002`. This changes the
-              attenuation by about a tenth of a dB and the delay by some millimeters.
-            - :attr:`~xvamp.references.magellan321x.h2so4_mr_x_3212` (where
-              ``3212``, ``3213`` and ``3214`` are individual orbits) from
-              :cite:t:`jenkins1996a`.  This changes the
-              attenuation by about a dB and the delay of some millimeters.
-        profile_OCS
-            OCS molar fraction profile. Preconfigured options are:
-
-            - :attr:`~xvamp.references.duan2010figures.co_molar_fraction`
-            - :attr:`~xvamp.references.marcq2006.ocs_mr` from :cite:t:`marcq2006`
-
-            This has a range delay effect on the sub-millimeter scale, and an effect
-            on the two-way attenuation on the millidecibel scale.
-        profile_Ar
-            Argon molar fraction profile. The default is not to add Argon to the
-            mixture, but a preconfigured (constant) profile is
-            :attr:`~xvamp.referenceszahnmoroz1985.ar_molar_fraction`.
-            This has a range delay effect on the sub-micrometer scale, and an effect
-            on the two-way attenuation on the tens of microdecibel scale.
-        use_clouds_from
-            Define which cloud polarization and absorption model to use:
-
-            - ``"cimino"``: :cite:t:`cimino1982`, eq. (10) and (16)
-            - ``"duan"``: :cite:t:`duan2010`, sections 2.1.5 and 2.2.5
-            - ``"none"``: Ignore all cloud effects
-
-            See the notes on the importance of this parameter at
-            :ref:`implementation:Cloud polarization and absorption`.
-        use_compressible_gas
-            Whether to use the gas compressibility factor when deriving the mass
-            density for the 0-100 km altitude range, or assume the ideal gas law.
-            This only affects the attenuation of the cloud layer, since all other
-            species quantities are derived from the pressure profile, which is directly
-            loaded from :cite:t:`seiff1985` and :cite:t:`zasova2006`.
-            The attenuation difference is about 2 millidecibels.
-            If a :class:`xvamp.profile.MultiProfile` is passed as the ``profile_TPD``
-            parameter and contains a mass density, ``use_compressible_gas`` is ignored.
-        ocs_abspol_from
-            Define which model to use to compute the absorption and polarization
-            profiles of OCS.
-
-            - ``"duan"``: Using a Ben-Reuven line shape derived from SO2 (default)
-            - ``"kolbe"``: Using a Lorentzian line shape as described in the paper
-              and following :cite:t:`kolbe1977`
-            - ``"bbld"``: Using a Ben-Reuven line shape with parameters derived
-              approximately from :cite:t:`bouanich1988` and :cite:t:`lavrentieva2020`.
-
-            Since OCS is such a minor constituent, the different options have a
-            sub-millimeter effect on the delay and a milli-decibel effect on the
-            attenuation. If changing the default, then also set
-            ``load_polarization_parameters=False``, as the setting affects the
-            polarization parameters.
-        use_eps_prime_r_inf
-            If ``True``, when computing the real part of the relative permittivity
-            of SO2 and OCS, a value of the real relative permittivity at infinite
-            frequency is set to an assumed value (rather than using the theoretical
-            value of unity). This only has an effect if
-            ``load_polarization_parameters=False``, because the polarization parameters
-            resulting from the real part of the relative permittivity are stored.
-            This option has a centimeter-level effect on the delay and changes the
-            attenuation by micro-decibels.
-        load_polarization_parameters
-            By default, the polarization parameters are loaded from a prepackaged
-            configuration file (in ``"data/default_polarization_parameters.toml"``).
-            If set to ``False``, they are recomputed with the current settings.
-            If set to a filename, the parameters are loaded from there.
-
-        Other Parameters
-        ----------------
-        use_keating_temp_press_above100km
-            Only used if ``profile_TPD`` is not a :class:`xvamp.profile.MultiProfile`.
-            Whether to use the temperature profile from :cite:t:`keating1985`
-            above 100 km, and get its matching pressure profile from the
-            ideal gas law.
-            This option has no effect on the model, since the transition between
-            atmosphere- and ionosphere-dominated permittivity profiles is at 100 km,
-            and the ionosphere is modeled differently. It is only useful if one
-            wants to load these quantities for later plotting.
-        use_virial_approximation
-            Whether to use the leading terms of the virial approximation to calculate
-            the total polarization of the polar species :cite:p:`harvey2005`,
-            or to use the polarization relationship by :cite:t:`pitzer1983`.
-            These two approaches are numerically fully equivalent.
-        cutoff_so2_frequency
-            When computing the absorption coefficient of SO2, include all spectral
-            lines up to this frequency. If ``None``, use all available ones.
-            This option is only kept for development purposes.
-        use_cimino_fitted_lookup
-            Whether to estimate the complex permittivity of gaseous H2SO4 from
-            lookup tables and then pre-fitted analytical extrapolation functions,
-            or to numerically inter- and extrapolate.
-            This option is only kept for development purposes, since the pre-fitted
-            model is flawed. Regardless, this options only has a range delay effect
-            on the sub-micrometer scale, and an effect on the two-way attenuation
-            on the millidecibel scale.
-        """
 
         # part 1: physical quantities
 
@@ -475,21 +475,26 @@ class Duan2010(Model):
 
         # evaluate all Profiles
         # temperature, pressure, and density
-        self.temperature = prof_tpd.temperature(self.altitude)
-        self.pressure = prof_tpd.pressure(self.altitude)
+        self.temperature = prof_tpd.temperature.evaluate(self.altitude)
+        self.pressure = prof_tpd.pressure.evaluate(self.altitude)
         if use_compressible_gas:
-            self.mass_density = prof_tpd.mass_density(self.altitude)
+            self.mass_density = prof_tpd.mass_density.evaluate(self.altitude)
         # electrons
-        self.electron_density = prof_electrons(self.altitude)
+        self.electron_density = prof_electrons.evaluate(self.altitude)
         # clouds
         if use_clouds_from != "none":
-            self.cloud_concentration = prof_cloud_concentration(self.altitude)
-            self.cloud_mass_mixing_ratio = prof_cloud_mass_mixing_ratio(self.altitude)
+            self.cloud_concentration = prof_cloud_concentration.evaluate(self.altitude)
+            self.cloud_mass_mixing_ratio = prof_cloud_mass_mixing_ratio.evaluate(
+                self.altitude
+            )
         else:
             self.cloud_mass_mixing_ratio = Quantity(0, u.dimensionless_unscaled)
         # species
         self.molar_fractions = QTable(
-            {spec: prof(self.altitude) for spec, prof in dict_prof_species.items()}
+            {
+                spec: prof.evaluate(self.altitude)
+                for spec, prof in dict_prof_species.items()
+            }
         )
 
         # part 4: computation of total and per-species densities
@@ -815,7 +820,7 @@ class Duan2010(Model):
 
         Returns
         -------
-            :class:`~xvamp.profile.Multiprofile` with altitude as the index and
+            :class:`~xvamp.profile.MultiProfile` with altitude as the index and
             temperature and pressure as data columns. If ``use_compressible_gas=True``,
             also has the mass density as a data column.
         """

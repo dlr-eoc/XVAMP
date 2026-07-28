@@ -44,6 +44,10 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # complain about broken links
 nitpicky = True
+# except for where there is no target in the atropy docs
+nitpick_ignore_regex = {(r"py:.*", r".*PhysicalType.*")}
+# and where it's unclear where the error comes from inside sphinx-autodoc-typehints
+suppress_warnings = ["sphinx_autodoc_typehints.forward_reference"]
 
 # intersphinx settings
 intersphinx_mapping = {
@@ -63,18 +67,16 @@ autosectionlabel_prefix_document = True
 typehints_defaults = "comma"
 
 # shorter object names
-add_module_names = False
+add_module_names = True
 
 # by default, show all members
 autodoc_default_options = {
     "members": True,
     "member-order": "groupwise",
-    "class-doc-from": "both",
-    "special-members": "__call__",
     "undoc-members": False,
-    "show-inheritance": True,
-    "exclude-members": "datafolder, tables",
+    "exclude-members": "datafolder, tables, __weakref__",
 }
+autodoc_preserve_defaults = True
 
 # for the bibliography
 bibtex_bibfiles = ["refs.bib"]

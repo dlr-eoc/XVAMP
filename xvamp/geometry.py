@@ -80,7 +80,7 @@ def height_to_radius(
 ) -> Quantity["length"]:
     """
     Add a planetary radius to a height and return the radius as a
-    :class:`astropy.unit.Quantity`.
+    :class:`astropy.units.Quantity`.
 
     Parameters
     ----------
@@ -187,7 +187,6 @@ def get_cross_track_displacement(
 
     Returns
     -------
-    cross_track_displacement
         Distance along the spherical planet between the true point on the ground and
         the point if the look angle went through vacuum
     """
