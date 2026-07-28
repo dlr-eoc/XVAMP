@@ -22,6 +22,40 @@ variables:
 
 # default settings for jobs
 default:
+  before_script:
+    - python --version
+    - python -m venv .venv
+    - . .venv/bin/activate
+    - which python; python --version
+  tags:
+    - mf-sar-dev
+  cache:
+    paths:
+      - .condaenv
+
+# run tests
+modeltests:
+  stage: test
+  image: "python:$VERSION"
+  script:
+    - python -m pip install .
+    - python -m unittest -v
+  parallel:
+    matrix:
+      - VERSION: ["3.13", "3.14"]
+
+# double-check formatting
+format:
+  stage: test
+  image: "python:3.14"
+  script:
+    - python -m pip install black
+    - black --diff --check --color --verbose .
+  allow_failure: true
+
+# build the documentation using conda
+pages:
+  stage: deploy
   image: condaforge/mambaforge:latest
   before_script:
     - echo $0
@@ -40,22 +74,6 @@ default:
       && conda activate $(pwd)/.condaenv;
       fi
     - which python; python --version
-  tags:
-    - mf-sar-dev
-  cache:
-    paths:
-      - .condaenv
-
-# run tests
-modeltests:
-  stage: test
-  script:
-    - python -m pip install --no-deps --force-reinstall .
-    - python -m unittest -v
-
-# build the documentation
-pages:
-  stage: deploy
   script:
     - python -m pip install --no-deps --force-reinstall .[docs]
     - cd docsrc
