@@ -6,7 +6,6 @@ Module containing the abstract base class for atmospheric models.
 import numpy as np
 import astropy.units as u
 import astropy.table as astrotable
-from typing import Tuple
 from astropy.units import Quantity, Unit
 from numpy.polynomial import Polynomial
 from scipy.integrate import cumulative_trapezoid
@@ -187,7 +186,7 @@ class Model:
         look_angle: Quantity["angle"] | float_or_array,
         height_terrain: Quantity["length"] | float_or_array,
         height_platform: Quantity["length"] | float,
-    ) -> Tuple[
+    ) -> tuple[
         Quantity["length"], Quantity["dB"], Quantity["angle"], Quantity["angle"]
     ]:
         """
@@ -362,7 +361,7 @@ class Model:
         height_terrain: Quantity | float_or_array,
         height_platform: Quantity | float_or_array,
         look_angle: Quantity | float_or_array,
-    ) -> Tuple[Quantity, Quantity]:
+    ) -> tuple[Quantity, Quantity]:
         """
         Calculate the range delay (defined as the difference between the apparent and
         geometric range) and two-way attenuation through the atmosphere.
@@ -427,7 +426,7 @@ class Model:
         )
 
     @staticmethod
-    def tpd_below_0km(venus_gas_constant: Quantity, add_3K: bool = False) -> Tuple[
+    def tpd_below_0km(venus_gas_constant: Quantity, add_3K: bool = False) -> tuple[
         Quantity["length"],
         Quantity["temperature"],
         Quantity["pressure"],

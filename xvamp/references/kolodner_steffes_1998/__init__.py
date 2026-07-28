@@ -6,7 +6,6 @@ from :cite:t:`kolodner1998`.
 # standard imports
 import astropy.units as u
 from importlib.resources import files as res_files
-from typing import Tuple
 from astropy.units import Quantity
 
 # package imports
@@ -36,7 +35,7 @@ T_H2SO4 = Quantity(553, "K")
 # define function to compute the real part of the relative permittivity and the
 # molar density of H2SO4 in the experiment as described in Section 3.2.
 def _get_eps_prime_r_and_molar_density() -> (
-    Tuple[Quantity["dimensionless"], Quantity["molar concentration"]]
+    tuple[Quantity["dimensionless"], Quantity["molar concentration"]]
 ):
     # refractivity of the gaseous sulfuric acid
     n_h2so4 = Quantity((340.64 + 245.36) / 2, "Nunit")

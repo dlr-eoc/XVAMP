@@ -4,7 +4,7 @@ as well as interpolators for the profiles.
 """
 
 # standard imports
-from typing import Literal, Tuple
+from typing import Literal
 import numpy as np
 from importlib.resources import files as res_files
 import astropy.units as u
@@ -46,7 +46,7 @@ tables = {t: Table.read(datafolder / f"table{t}.csv") for t in TABLES}
 
 
 # function to build interpolators
-def _get_interpolators() -> Tuple[
+def _get_interpolators() -> tuple[
     LinearNDInterpolator,
     LinearNDInterpolator,
     LinearNDInterpolator,
@@ -160,7 +160,7 @@ def get_h2s04_rel_permittivity(
     concentration: Quantity,
     temperature: Quantity,
     wavelength: Literal["s", "x"] | Quantity = "x",
-) -> Tuple[Quantity, Quantity]:
+) -> tuple[Quantity, Quantity]:
     """
     Calculate the real and imaginary parts of the relative permittivity of
     H2SO4 clouds.

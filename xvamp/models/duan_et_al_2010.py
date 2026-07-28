@@ -9,7 +9,6 @@ import astropy.units as u
 import astropy.table as astrotable
 from warnings import warn
 from pathlib import Path
-from typing import Tuple
 from astropy.units import Quantity, Unit
 from astropy.table import QTable
 
@@ -1274,7 +1273,7 @@ class Duan2010(Model):
 
     def evaluate_cloud_permittivity(
         self, use_clouds_from: str = "cimino", use_cimino_fitted_lookup: bool = False
-    ) -> Tuple[Quantity["dimensionless"], Quantity["wavenumber"]]:
+    ) -> tuple[Quantity["dimensionless"], Quantity["wavenumber"]]:
         """
         Evaluate the cloud polarization and absorption given the model's
         atmospheric quantities. Follows Sections 2.1.5 and 2.2.5,
@@ -2115,7 +2114,7 @@ class Duan2010(Model):
     @staticmethod
     def get_h2so4_rel_permittivity(
         concentration: Quantity, temperature: Quantity, frequency: Quantity
-    ) -> Tuple[Quantity, Quantity]:
+    ) -> tuple[Quantity, Quantity]:
         """
         Calculate the complex relative permittivity of gaseous H2SO4.
 

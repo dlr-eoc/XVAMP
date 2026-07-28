@@ -7,7 +7,6 @@ processed by :cite:t:`jenkins1994`.
 # standard imports
 import numpy as np
 from importlib.resources import files as res_files
-from typing import Tuple
 from astropy.table import QTable
 
 # package imports
@@ -71,7 +70,7 @@ tables = {
 
 def get_wavelength_orbit(
     wavelength: str | None = None, orbit: int | None = None
-) -> Tuple[QTable, QTable]:
+) -> tuple[QTable, QTable]:
     """
     Return the dataset for a specific wavelength and/or orbit.
 
@@ -105,7 +104,7 @@ def get_wavelength_orbit(
 
 
 # quick function to get the H2SO4 mixing ratio for X-band
-def _extract_xband_h2so4_profile(orbit: int) -> Tuple[Profile, Profile, Profile]:
+def _extract_xband_h2so4_profile(orbit: int) -> tuple[Profile, Profile, Profile]:
     sub_abs = tables["mgn_abs"][
         np.logical_and(
             tables["mgn_abs"]["WAVELENGTH"] == "X",

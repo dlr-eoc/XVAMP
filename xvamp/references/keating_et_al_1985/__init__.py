@@ -4,7 +4,6 @@ Module that provides the background, reference atmospheric properties from
 """
 
 # standard imports
-from typing import Tuple
 import numpy as np
 from importlib.resources import files as res_files
 from astropy.units import Quantity
@@ -33,7 +32,7 @@ tables = {t: read_unit_csv(datafolder / f"table{t}.csv") for t in TABLES}
 # function to combine the different tables to get joint profiles
 # for day and night
 def _combine_tables_day_night() -> (
-    Tuple[MultiProfile, MultiProfile, MultiProfile, MultiProfile]
+    tuple[MultiProfile, MultiProfile, MultiProfile, MultiProfile]
 ):
     # stack
     day = vstack(

@@ -5,7 +5,6 @@ Provides functions around the satellite's viewing geometry.
 # standard imports
 import astropy.units as u
 import numpy as np
-from typing import Tuple
 from scipy.integrate import cumulative_trapezoid
 from astropy.units import Quantity, Unit, UnitConversionError
 
@@ -39,7 +38,7 @@ def get_sza(lst: float_or_array, lat: float_or_array) -> float_or_array:
 
 def _make_broadcastable_input(
     *inputs: Quantity | float_or_array,
-) -> Tuple[Quantity | float_or_array, ...]:
+) -> tuple[Quantity | float_or_array, ...]:
     """
     Parse all inputs to a commons length.
 
@@ -108,7 +107,7 @@ def geometry_from_central_angle(
     central_angle: Quantity["angle"] | float_or_array,
     height_terrain: Quantity["length"] | float_or_array,
     height_platform: Quantity["length"] | float_or_array,
-) -> Tuple[Quantity["length"], Quantity["angle"], Quantity["angle"]]:
+) -> tuple[Quantity["length"], Quantity["angle"], Quantity["angle"]]:
     """
     Calculate the geometric (in vacuum) range, look angle, and incidence angle
     from the central angle and the law of cosines.
