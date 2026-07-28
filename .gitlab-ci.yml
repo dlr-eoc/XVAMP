@@ -49,8 +49,7 @@ modeltests:
       && conda activate $(pwd)/.condaenv;
       fi
     - which python; python --version
-    - python -m pip remove xvamp
-    - python -m pip install .
+    - python -m pip install --no-deps --force-reinstall .
     - python -m unittest -v
 
 # build the documentation
@@ -73,8 +72,7 @@ pages:
       && conda activate $(pwd)/.condaenv;
       fi
     - which python; python --version
-    - python -m pip remove xvamp
-    - python -m pip install .[docs]
+    - python -m pip install --no-deps --force-reinstall .[docs]
     - cd docsrc
     - sphinx-build -M html . _build
     - mv _build/html ../public
