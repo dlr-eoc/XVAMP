@@ -49,7 +49,7 @@ modeltests:
       && conda activate $(pwd)/.condaenv;
       fi
     - which python; python --version
-    - python -m pip install --upgrade .
+    - python -m pip install --force-reinstall .
     - python -m unittest -v
 
 # build the documentation
@@ -72,7 +72,7 @@ pages:
       && conda activate $(pwd)/.condaenv;
       fi
     - which python; python --version
-    - python -m pip install --upgrade .[docs]
+    - python -m pip install --force-reinstall .[docs]
     - cd docsrc
     - sphinx-build -M html . _build
     - mv _build/html ../public
