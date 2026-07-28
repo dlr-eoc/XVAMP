@@ -6,6 +6,7 @@ recovered by the current version of the package.
 # standard imports
 import unittest
 import numpy as np
+from pathlib import Path
 from astropy.units import Quantity
 from astropy.table import QTable
 from warnings import warn
@@ -25,7 +26,7 @@ def compare_quantities(
     atol: float = 1e-10,
 ):
     """
-    Helper function to compare two :class:`astropy.unit.Quantity`s, comparing
+    Helper function to compare two :class:`astropy.units.Quantity`s, comparing
     the values in the same units to numerical precision but only warning if the
     units are different (as long as they're compatible).
 
@@ -58,6 +59,10 @@ def compare_quantities(
         warn(f"{name}: actual unit {actual.unit} != {desired.unit}")
 
 
+@unittest.skipIf(
+    not Path("reference_output").is_dir(),
+    "'reference_output' folder not found, skipping comparison",
+)
 class TestDuan2010(unittest.TestCase):
 
     # tables to load
