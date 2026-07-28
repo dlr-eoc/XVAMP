@@ -50,19 +50,19 @@ default:
 modeltests:
   stage: test
   script:
-    - python -m pip install --upgrade .
+    - python -m pip install --no-deps --force-reinstall .
     - python -m unittest -v
 
 # build the documentation
 pages:
   stage: deploy
   script:
-    - python -m pip install --upgrade .[docs]
+    - python -m pip install --no-deps --force-reinstall .[docs]
     - cd docsrc
     - sphinx-build -M html . _build
     - mv _build/html ../public
   artifacts:
     paths:
       - public
-  only:
-    - main
+  rules:
+    - if: $CI_COMMIT_TAG
