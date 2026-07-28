@@ -5,12 +5,43 @@
 
 import os
 import sys
-from importlib.metadata import version as get_version
+import json
+import importlib.metadata as md
+import setuptools_scm as scm
 from datetime import datetime
 
 # add root folder to path so that we can import the package in
 # a relative sense
 sys.path.insert(0, os.path.abspath(".."))
+
+
+# helper function to get version string from setuptools_scm if the package is
+# installed in editable mode
+def get_version(pkg_name: str) -> str:
+    """
+    Return the version string of a package. If it is installed in editable mode
+    and ``setuptools_scm`` is installed, return the derived version string instead.
+    """
+    # get distribution(s)
+    dists = list(md.distributions(name=pkg_name))
+    # check whether direct_url.json exists and use its editable flag if present
+    editable = False
+    for dist in dists:
+        dutext = dist.read_text("direct_url.json")
+        if dutext is not None:
+            dudict = json.loads(dutext)
+            if "dir_info" in dudict:
+                editable = dudict["dir_info"]["editable"]
+    # return respective version number
+    if editable:
+        release = scm.get_version(root="..", fallback_root="..", relative_to=__file__)
+        version = ".".join(release.split(".")[:2])
+        print(f"Found editable {release=} {version=}")
+    else:
+        version = md.version(pkg_name)
+        print(f"Found non-editable {version=}")
+    return version
+
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
