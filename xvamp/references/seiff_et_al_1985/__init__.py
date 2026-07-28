@@ -21,11 +21,15 @@ LAT = Quantity([30, 45, 60, 75, 85], "°")
 """ Latitudes of tables 1-2[a-e]"""
 
 # get local installation folder paths
-datafolder = res_files()
+_datafolder = res_files()
 """ Resolved current folder location """
 # load raw data files
-tables = {t: read_unit_csv(datafolder / f"table{t}.csv") for t in TABLES}
-""" Loaded tables """
+tables = {t: read_unit_csv(_datafolder / f"table{t}.csv") for t in TABLES}
+"""
+Loaded tables
+
+:meta hide-value:
+"""
 
 # build the datacube for 33-100km for the five samplings of latitude
 dcube_33km_100km = np.stack(

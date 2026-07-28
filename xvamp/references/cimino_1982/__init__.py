@@ -38,11 +38,15 @@ EXTRAPOLATE_DOWN_TO = 200.0
 """ Extrapolate the data down to this temperature [K] """
 
 # get local installation folder paths
-datafolder = res_files()
+_datafolder = res_files()
 """ Resolved current folder location """
 # load super-raw data files
-tables = {t: Table.read(datafolder / f"table{t}.csv") for t in TABLES}
-""" Loaded tables """
+tables = {t: Table.read(_datafolder / f"table{t}.csv") for t in TABLES}
+"""
+Loaded tables
+
+:meta hide-value:
+"""
 
 
 # function to build interpolators

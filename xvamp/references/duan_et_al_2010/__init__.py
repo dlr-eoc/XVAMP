@@ -18,11 +18,15 @@ TABLES = [f"fig{n}" for n in ["6b", "7a", "7b", "7d", "8a", "8b", "9a", "9b"]] +
 """ Table numbers to load """
 
 # get local installation folder paths
-datafolder = res_files()
+_datafolder = res_files()
 """ Resolved current folder location """
 # load raw data files
-tables = {t: read_unit_csv(datafolder / f"table{t}.csv") for t in TABLES}
-""" Loaded tables """
+tables = {t: read_unit_csv(_datafolder / f"table{t}.csv") for t in TABLES}
+"""
+Loaded tables
+
+:meta hide-value:
+"""
 
 # profiles defined manually
 
@@ -44,6 +48,8 @@ ELECTRON_DENSITY_NODES = np.array(
 """
 Nodes that define the electron density profile as pairs of
 altitude [km] and 1e11*log(electron density [1/m3])
+
+:meta hide-value:
 """
 electron_density = Profile(
     ELECTRON_DENSITY_NODES[:, 0],
@@ -81,6 +87,8 @@ H2O_FRACTION_NODES = np.array(
 """
 Nodes that define the H2O molar fraction profile as pairs of
 altitude [km] and fraction [ppm]
+
+:meta hide-value:
 """
 h2o_molar_fraction = Profile(
     H2O_FRACTION_NODES[:, 0],
@@ -94,6 +102,8 @@ H2O_OLD_FRACTION_NODES = np.array([[5, 30], [60, 30]])
 """
 Nodes that define the old H2O molar fraction profile as pairs of
 altitude [km] and fraction [ppm]
+
+:meta hide-value:
 """
 h2o_old_molar_fraction = Profile(
     H2O_OLD_FRACTION_NODES[:, 0],
@@ -123,6 +133,8 @@ SO2_FRACTION_NODES = np.array(
 """
 Nodes that define the SO2 molar fraction profile as pairs of
 altitude [km] and fraction [ppm]
+
+:meta hide-value:
 """
 so2_molar_fraction = Profile(
     SO2_FRACTION_NODES[:, 0],
@@ -148,6 +160,8 @@ SO2_OLD_FRACTION_NODES = np.array(
 """
 Nodes that define the old SO2 molar fraction profile as pairs of
 altitude [km] and fraction [ppm]
+
+:meta hide-value:
 """
 so2_old_molar_fraction = Profile(
     SO2_OLD_FRACTION_NODES[:, 0],
@@ -175,6 +189,8 @@ H2SO4_FRACTION_NODES = np.array(
 """
 Nodes that define the H2SO4 molar fraction profile as pairs of
 altitude [km] and fraction [ppm]
+
+:meta hide-value:
 """
 h2so4_molar_fraction = Profile(
     H2SO4_FRACTION_NODES[:, 0],
@@ -202,6 +218,8 @@ H2SO4_3212_FRACTION_NODES = np.array(
 """
 Nodes that define the H2SO4 molar fraction profile from a modified Magellan
 orbit 3212 as pairs of altitude [km] and fraction [ppm]
+
+:meta hide-value:
 """
 h2so4_3212_molar_fraction = Profile(
     H2SO4_3212_FRACTION_NODES[:, 0],
@@ -234,6 +252,8 @@ CO_FRACTION_NODES = np.array(
 """
 Nodes that define the CO molar fraction profile as pairs of
 altitude [km] and fraction [ppm]
+
+:meta hide-value:
 """
 co_molar_fraction = Profile(
     CO_FRACTION_NODES[:, 0],
@@ -265,6 +285,8 @@ OCS_FRACTION_NODES = np.array(
 """
 Nodes that define the OCS molar fraction profile as pairs of
 altitude [km] and fraction [ppm]
+
+:meta hide-value:
 """
 ocs_molar_fraction = Profile(
     OCS_FRACTION_NODES[:, 0],
@@ -277,6 +299,8 @@ OCS_OLD_FRACTION_NODES = np.array([[30, 20], [38, 0.35]])
 """
 Nodes that define the old OCS molar fraction profile as pairs of
 altitude [km] and fraction [ppm]
+
+:meta hide-value:
 """
 ocs_old_molar_fraction = Profile(
     OCS_OLD_FRACTION_NODES[:, 0],

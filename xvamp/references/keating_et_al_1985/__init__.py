@@ -22,11 +22,15 @@ SZA = Quantity([16, 34, 61, 90, 119, 146, 164], "°")
 """ Solar zenith angles for tables 4-[4, 9-13, 5] [°] """
 
 # get local installation folder paths
-datafolder = res_files()
+_datafolder = res_files()
 """ Resolved current folder location """
 # load raw data files
-tables = {t: read_unit_csv(datafolder / f"table{t}.csv") for t in TABLES}
-""" Loaded tables """
+tables = {t: read_unit_csv(_datafolder / f"table{t}.csv") for t in TABLES}
+"""
+Loaded tables
+
+:meta hide-value:
+"""
 
 
 # function to combine the different tables to get joint profiles

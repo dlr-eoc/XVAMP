@@ -28,11 +28,15 @@ UNIT_EL_DENSITY = Unit("1/m3")
 """ Output unit of the electron density profile [1/m3]"""
 
 # get local installation folder paths
-datafolder = res_files()
+_datafolder = res_files()
 """ Resolved current folder location """
 # load raw data files
-tables = {t: read_unit_csv(datafolder / f"table{t}.csv") for t in TABLES}
-""" Loaded tables """
+tables = {t: read_unit_csv(_datafolder / f"table{t}.csv") for t in TABLES}
+"""
+Loaded tables
+
+:meta hide-value:
+"""
 
 
 # get function that returns the first 6 electron density profiles as a MultiProfile

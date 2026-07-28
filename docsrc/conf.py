@@ -74,7 +74,6 @@ autodoc_default_options = {
     "members": True,
     "member-order": "groupwise",
     "undoc-members": False,
-    "exclude-members": "datafolder, tables, __weakref__",
 }
 autodoc_preserve_defaults = True
 

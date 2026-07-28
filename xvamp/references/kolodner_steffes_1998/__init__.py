@@ -18,12 +18,15 @@ TABLES = ["fig789"]
 """ Table numbers to load """
 
 # get local installation folder paths
-datafolder = res_files()
+_datafolder = res_files()
 """ Resolved current folder location """
 # load raw data files
-tables = {t: read_unit_csv(datafolder / f"table{t}.csv") for t in TABLES}
-""" Loaded tables """
+tables = {t: read_unit_csv(_datafolder / f"table{t}.csv") for t in TABLES}
+"""
+Loaded tables
 
+:meta hide-value:
+"""
 # parameters of the experiment
 MU_H2SO4 = Quantity(2.72e-18, ESU_CM)
 """ Molecular dipole moment for gaseous sulfuric acid """

@@ -34,12 +34,12 @@ UNITS = ["MHz", "MHz", "dex(nm2 MHz)", "", "cm-1", "", "", "", "", ""]
 """ Column units """
 
 # get local installation folder paths
-datafolder = res_files()
+_datafolder = res_files()
 """ Resolved current folder location """
 # load raw data files
 tables = {
     species: read_unit_fwf(
-        datafolder / filename,
+        _datafolder / filename,
         names=COLUMNS,
         formats=FORMATS,
         widths=WIDTHS,
@@ -47,7 +47,11 @@ tables = {
     )
     for species, filename in TABLES.items()
 }
-""" Loaded tables """
+"""
+Loaded tables
+
+:meta hide-value:
+"""
 
 # provide direct quick access to the tables
 ocs_lines = tables["OCS"]

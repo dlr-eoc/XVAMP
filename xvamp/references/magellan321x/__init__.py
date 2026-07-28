@@ -56,16 +56,20 @@ STR_CONVERTER = {0: lambda s: s.strip()}
 """ Convenience converter to strip whitespace from the wavelength field """
 
 # get local installation folder paths
-datafolder = res_files()
+_datafolder = res_files()
 """ Resolved current folder location """
 # load raw data files
 tables = {
-    "mgn_abs": read_unit_fwf_desc(datafolder / "mgn_abs.dat", DESC_ABS, STR_CONVERTER),
+    "mgn_abs": read_unit_fwf_desc(_datafolder / "mgn_abs.dat", DESC_ABS, STR_CONVERTER),
     "mgn_rtpd": read_unit_fwf_desc(
-        datafolder / "mgn_rtpd.dat", DESC_RTPD, STR_CONVERTER
+        _datafolder / "mgn_rtpd.dat", DESC_RTPD, STR_CONVERTER
     ),
 }
-""" Loaded tables """
+"""
+Loaded tables
+
+:meta hide-value:
+"""
 
 
 def get_wavelength_orbit(
