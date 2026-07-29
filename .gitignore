@@ -169,6 +169,7 @@ cython_debug/
 # documentation
 docs/
 docsrc/_build
+docsrc/paper.pdf
 
 # reference output for local change tracking
 reference_output/
