@@ -476,7 +476,7 @@ class Model:
         )
         temp_help_w0 -= temp_help_w0[-1] - seiff1985.tables["1-1"]["T"][0]
         if add_3K:
-            temp_help_w0 -= 3 * u.K
+            temp_help_w0 += 3 * u.K
         temp_neg = temp_help_w0[:-1:1000]
         # then, extend the imperfect gas compressibiltiy factor
         zeta_neg = Quantity(
