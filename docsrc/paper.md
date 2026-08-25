@@ -138,6 +138,14 @@ and incorporate new datasets the engineering team may not be aware of.
 Finally, we expect end users of the scientific data to be released by VERITAS to
 use this model if they intend to reprocess the data themselves.
 
+# Acknowledgments
+
+The authors gratefully acknowledge support from the VERITAS project, especially the
+helpful discussions with Scott Hensley and Eva Peral.
+This work was partially carried out at the Jet Propulsion Laboratory, California
+Institute of Technology, under a contract with the National Aeronautics and Space
+Administration.
+
 # AI usage disclosure
 
 No generative AI tools were used in the development of this software, the writing
