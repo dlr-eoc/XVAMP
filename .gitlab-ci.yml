@@ -85,7 +85,7 @@ pages:
 # build JOSS paper
 josspaper:
   stage: deploy
-  image: alpine:latest
+  image: quay.io/podman/stable
   script:
     - podman run --rm --volume $(pwd)/docsrc:/data --env JOURNAL=joss ghcr.io/openjournals/inara -o pdf paper.md
   artifacts:
