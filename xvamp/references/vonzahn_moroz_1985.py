@@ -13,8 +13,12 @@ from ..profile import Profile
 # the frequently-used constant values of the Venusian atmosphere
 CO2_MR = Quantity(0.965, dimensionless_unscaled)
 """ CO2 mixing ratio [-] """
+CO2_MR_ERR = Quantity(0.008, dimensionless_unscaled)
+""" CO2 mixing ratio error [-] """
 N2_MR = Quantity(0.035, dimensionless_unscaled)
 """ N2 mixing ratio [-] """
+N2_MR_ERR = Quantity(0.008, dimensionless_unscaled)
+""" N2 mixing ratio error [-] """
 AR_MR = Quantity(7e-5, dimensionless_unscaled)
 """ Argon mixing ratio [-] """
 

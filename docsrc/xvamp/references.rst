@@ -48,6 +48,11 @@ Marcq et al. (2006)
 
 .. automodule:: xvamp.references.marcq_et_al_2006
 
+Mogul et al. (2023, 2025)
+-------------------------
+
+.. automodule:: xvamp.references.mogul_et_al_2023_2025
+
 Pätzold et al. (2007)
 ---------------------
 
