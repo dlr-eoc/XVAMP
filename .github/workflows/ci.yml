@@ -24,6 +24,45 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Miniforge
+        uses: conda-incubator/setup-miniconda@v4
+        with:
+          miniforge-version: latest
+          activate-environment: xvamp
+          channel-priority: strict
+          conda-remove-defaults: "true"
+          use-only-tar-bz2: true
+          auto-activate-base: false
+
+      - name: Get Date
+        id: get-date
+        run: echo "today=$(/bin/date -u '+%Y%m%d')" >> $GITHUB_OUTPUT
+
+      - name: Cache conda pkgs
+        id: cache-pkgs
+        uses: actions/cache@v5
+        env:
+          # Increase this value to reset cache if environment.yml has not changed
+          CACHE_NUMBER: 0
+        with:
+          path: ~/conda_pkgs_dir
+          key:
+            ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{
+            hashFiles('environment.yml') }}
+      
+      - name: Cache Conda env
+        id: cache-env
+        uses: actions/cache@v5
+        env:
+          # Increase this value to reset cache if environment.yml has not changed
+          CACHE_NUMBER: 0
+        with:
+          path: ${{ env.CONDA }}/envs
+          key:
+            conda-${{ runner.os }}--${{ runner.arch }}--${{
+            steps.get-date.outputs.today }}-${{
+            hashFiles('environment.yml') }}-${{ env.CACHE_NUMBER  }}
+
       - name: Set up Conda
         uses: conda-incubator/setup-miniconda@v4
         with:
@@ -31,8 +70,14 @@ jobs:
           miniforge-version: latest
           activate-environment: xvamp
           channel-priority: strict
+          conda-remove-defaults: "true"
           use-only-tar-bz2: true
           auto-activate-base: false
+    
+      - name: Update environment
+        run:
+          mamba env update -n xvamp -f environment.yml
+        if: (steps.cache-env.outputs.cache-hit != 'true') || (steps.cache-pkgs.outputs.cache-hit != 'true')
 
       - name: Test conda
         run: |
@@ -55,6 +100,45 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Miniforge
+        uses: conda-incubator/setup-miniconda@v4
+        with:
+          miniforge-version: latest
+          activate-environment: xvamp
+          channel-priority: strict
+          conda-remove-defaults: "true"
+          use-only-tar-bz2: true
+          auto-activate-base: false
+
+      - name: Get Date
+        id: get-date
+        run: echo "today=$(/bin/date -u '+%Y%m%d')" >> $GITHUB_OUTPUT
+
+      - name: Cache conda pkgs
+        id: cache-pkgs
+        uses: actions/cache@v5
+        env:
+          # Increase this value to reset cache if environment.yml has not changed
+          CACHE_NUMBER: 0
+        with:
+          path: ~/conda_pkgs_dir
+          key:
+            ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{
+            hashFiles('environment.yml') }}
+      
+      - name: Cache Conda env
+        id: cache-env
+        uses: actions/cache@v5
+        env:
+          # Increase this value to reset cache if environment.yml has not changed
+          CACHE_NUMBER: 0
+        with:
+          path: ${{ env.CONDA }}/envs
+          key:
+            conda-${{ runner.os }}--${{ runner.arch }}--${{
+            steps.get-date.outputs.today }}-${{
+            hashFiles('environment.yml') }}-${{ env.CACHE_NUMBER  }}
+
       - name: Set up Conda
         uses: conda-incubator/setup-miniconda@v4
         with:
@@ -62,8 +146,14 @@ jobs:
           miniforge-version: latest
           activate-environment: xvamp
           channel-priority: strict
+          conda-remove-defaults: "true"
           use-only-tar-bz2: true
           auto-activate-base: false
+    
+      - name: Update environment
+        run:
+          mamba env update -n xvamp -f environment.yml
+        if: (steps.cache-env.outputs.cache-hit != 'true') || (steps.cache-pkgs.outputs.cache-hit != 'true')
 
       - name: Test conda
         run: |
