@@ -16,6 +16,9 @@ jobs:
   setup-conda:
     name: Set up Conda Environment
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -28,7 +31,8 @@ jobs:
           activate-environment: xvamp
           channel-priority: strict
           use-only-tar-bz2: true
-          
+          auto-activate-base: false
+
       - name: Test conda
         run: |
           conda env list
