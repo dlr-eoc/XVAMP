@@ -61,7 +61,7 @@ jobs:
 
       - name: Set up environment
         id: setup-env
-        run:
+        run: |
           mamba env update -n xvamp -f environment.yml
           echo "prefix=$(conda info --base)/envs/xvamp" >> $GITHUB_OUTPUT
 
