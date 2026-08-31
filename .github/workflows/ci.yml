@@ -16,66 +16,34 @@ jobs:
   setup-conda:
     name: Set up Conda Environment
     runs-on: ubuntu-latest
-    container:
-      image: condaforge/mambaforge:latest
-    outputs:
-      conda_prefix: ${{ steps.setup-env.outputs.prefix }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Conda
+        uses: conda-incubator/setup-miniconda@v4
+        with:
+          environment-file: environment.yml
+          miniforge-version: latest
+          activate-environment: xvamp
+          channel-priority: strict
+          use-only-tar-bz2: true
+          
+      - name: Test conda
         run: |
-          echo "source $(conda info --base)/etc/profile.d/conda.sh" >> $GITHUB_ENV
-          echo "conda activate $(pwd)/.condaenv" >> $GITHUB_ENV
-
-      - name: Check environment
-        run: |
-          echo "Current directory: $(pwd)"
+          conda env list
           which python
           python --version
-          which conda
-          conda --version
-
-      - name: Cache Conda environment
-        uses: actions/cache@v4
-        with:
-          path: .condaenv
-          key: ${{ runner.os }}-conda-${{ hashFiles('environment.yml') }}
-          restore-keys: |
-            ${{ runner.os }}-conda-
-
-      - name: Set up or update Conda environment
-        id: setup-env
-        run: |
-          if conda info --envs | grep -q "\.condaenv"; then
-            echo "Updating existing environment"
-            conda env update --prefix=$(pwd)/.condaenv -f environment.yml
-          else
-            echo "Creating new environment"
-            conda env create --prefix=$(pwd)/.condaenv -f environment.yml
-          fi
-          echo "prefix=$(pwd)/.condaenv" >> $GITHUB_OUTPUT
-
-      - name: Activate environment
-        run: |
-          eval "$(conda shell.bash hook)"
-          conda activate $(pwd)/.condaenv
 
   test:
     name: Run Tests
     needs: setup-conda
     runs-on: ubuntu-latest
-    container:
-      image: condaforge/mambaforge:latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Conda (from shared job)
-        run: |
-          eval "$(conda shell.bash hook)"
-          conda activate ${{ needs.setup-conda.outputs.conda_prefix }}
+      - name: Activate environment
+        uses: conda-incubator/setup-miniconda@v4
+        with:
+          activate-environment: xvamp
 
       - name: Install package in development mode
         run: |
@@ -93,13 +61,10 @@ jobs:
       image: condaforge/mambaforge:latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Conda (from shared job)
-        run: |
-          eval "$(conda shell.bash hook)"
-          conda activate ${{ needs.setup-conda.outputs.conda_prefix }}
+      - name: Activate environment
+        uses: conda-incubator/setup-miniconda@v4
+        with:
+          activate-environment: xvamp
 
       - name: Install package with docs dependencies
         run: |
