@@ -30,7 +30,7 @@ def get_version(pkg_name: str) -> str:
         dutext = dist.read_text("direct_url.json")
         if dutext is not None:
             dudict = json.loads(dutext)
-            if "dir_info" in dudict:
+            if ("dir_info" in dudict) and ("editable" in dudict["dir_info"]):
                 editable = dudict["dir_info"]["editable"]
     # return respective version number
     if editable:
