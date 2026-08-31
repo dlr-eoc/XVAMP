@@ -1,0 +1,119 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  setup-conda:
+    name: Set up Conda Environment
+    runs-on: ubuntu-latest
+    container:
+      image: condaforge/mambaforge:latest
+    outputs:
+      conda_prefix: ${{ steps.setup-env.outputs.prefix }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Conda
+        run: |
+          echo "source $(conda info --base)/etc/profile.d/conda.sh" >> $GITHUB_ENV
+          echo "conda activate $(pwd)/.condaenv" >> $GITHUB_ENV
+
+      - name: Check environment
+        run: |
+          echo "Current directory: $(pwd)"
+          which python
+          python --version
+          which conda
+          conda --version
+
+      - name: Cache Conda environment
+        uses: actions/cache@v4
+        with:
+          path: .condaenv
+          key: ${{ runner.os }}-conda-${{ hashFiles('environment.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-conda-
+
+      - name: Set up or update Conda environment
+        id: setup-env
+        run: |
+          if conda info --envs | grep -q "\.condaenv"; then
+            echo "Updating existing environment"
+            conda env update --prefix=$(pwd)/.condaenv -f environment.yml
+          else
+            echo "Creating new environment"
+            conda env create --prefix=$(pwd)/.condaenv -f environment.yml
+          fi
+          echo "prefix=$(pwd)/.condaenv" >> $GITHUB_OUTPUT
+
+      - name: Activate environment
+        run: |
+          eval "$(conda shell.bash hook)"
+          conda activate $(pwd)/.condaenv
+
+  test:
+    name: Run Tests
+    needs: setup-conda
+    runs-on: ubuntu-latest
+    container:
+      image: condaforge/mambaforge:latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Conda (from shared job)
+        run: |
+          eval "$(conda shell.bash hook)"
+          conda activate ${{ needs.setup-conda.outputs.conda_prefix }}
+
+      - name: Install package in development mode
+        run: |
+          python -m pip install --no-deps --force-reinstall .
+
+      - name: Run tests
+        run: |
+          python -m unittest -v
+
+  build-docs:
+    name: Build Documentation
+    needs: setup-conda
+    runs-on: ubuntu-latest
+    container:
+      image: condaforge/mambaforge:latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Conda (from shared job)
+        run: |
+          eval "$(conda shell.bash hook)"
+          conda activate ${{ needs.setup-conda.outputs.conda_prefix }}
+
+      - name: Install package with docs dependencies
+        run: |
+          python -m pip install --no-deps --force-reinstall .[docs]
+
+      - name: Build documentation
+        run: |
+          cd docsrc
+          sphinx-build -M html . _build
+          mv _build/html ../public
+
+      - name: Upload documentation artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation
+          path: public/
+          if-no-files-found: ignore

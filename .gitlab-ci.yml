@@ -84,3 +84,15 @@ pages:
       - public
   rules:
     - if: $CI_COMMIT_TAG
+
+# build JOSS paper
+josspaper:
+  stage: deploy
+  image: quay.io/podman/stable
+  script:
+    - podman run --rm --volume $(pwd)/docsrc:/data --env JOURNAL=joss ghcr.io/openjournals/inara -o pdf paper.md
+  artifacts:
+    paths:
+      - docsrc/paper.pdf
+  rules:
+    - if: $CI_COMMIT_BRANCH == "joss"

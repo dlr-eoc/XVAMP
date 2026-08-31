@@ -26,3 +26,17 @@ documentation](https://xvamp-c7e25b.pages.gitlab.dlr.de/scripts/quickstart.html)
 DLR is grateful to Jessie Duan at JPL for making available the source code of
 her reference implementation of her paper, and assisting with any questions that
 came up during the development of this package.
+
+Furthermore, we want to thank all the authors who published their (reprocessed)
+datasets of various aspects of Venus atmospheric research, be that in-situ,
+remote sensing, or laboratory based. A full list can be found in the
+[bibliography](https://xvamp-c7e25b.pages.gitlab.dlr.de/bibliography.html) as well as
+the [Python modules](https://xvamp-c7e25b.pages.gitlab.dlr.de/xvamp/references.html)
+providing access to the data.
+
+## Contributing
+
+We welcome all kinds of contributions: coding improvements, clarification questions,
+and feedback from the scientific community on the modeling approach as well as the
+data sources used. Please use the issue tracker or contact the author directly at
+<tobias.koehne@dlr.de>.
