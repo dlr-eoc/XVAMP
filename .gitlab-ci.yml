@@ -22,7 +22,11 @@ variables:
 
 # default settings for jobs
 default:
-  image: condaforge/mambaforge:latest
+  before_script:
+    - python --version
+    - python -m venv .venv
+    - . .venv/bin/activate
+    - which python; python --version
   tags:
     - mf-sar-dev
   cache:
@@ -32,30 +36,28 @@ default:
 # run tests
 modeltests:
   stage: test
+  image: "python:$VERSION"
   script:
-    - echo $0
-    - pwd
-    - which python; python --version
-    - which conda; conda --version
-    - eval "$(conda shell.bash hook)"
-    - ACTIVATIONSUCCESS=0
-    - conda activate $(pwd)/.condaenv 2>&1 || ACTIVATIONSUCCESS=$?
-    - if [[ $ACTIVATIONSUCCESS == 0 ]]; then
-      echo "Updating environment";
-      conda env update --prefix=$(pwd)/.condaenv -f environment.yml;
-      else
-      echo "Creating a new environment";
-      conda env create --prefix=$(pwd)/.condaenv -f environment.yml
-      && conda activate $(pwd)/.condaenv;
-      fi
-    - which python; python --version
-    - python -m pip install --no-deps --force-reinstall .
+    - python -m pip install .
     - python -m unittest -v
+  parallel:
+    matrix:
+      - VERSION: ["3.13", "3.14"]
 
-# build the documentation
+# double-check formatting
+format:
+  stage: test
+  image: "python:3.14"
+  script:
+    - python -m pip install black
+    - black --diff --check --color --verbose .
+  allow_failure: true
+
+# build the documentation using conda
 pages:
   stage: deploy
-  script:
+  image: condaforge/mambaforge:latest
+  before_script:
     - echo $0
     - pwd
     - which python; python --version
@@ -72,6 +74,7 @@ pages:
       && conda activate $(pwd)/.condaenv;
       fi
     - which python; python --version
+  script:
     - python -m pip install --no-deps --force-reinstall .[docs]
     - cd docsrc
     - sphinx-build -M html . _build
@@ -81,3 +84,15 @@ pages:
       - public
   rules:
     - if: $CI_COMMIT_TAG
+
+# build JOSS paper
+josspaper:
+  stage: deploy
+  image: quay.io/podman/stable
+  script:
+    - podman run --rm --volume $(pwd)/docsrc:/data --env JOURNAL=joss ghcr.io/openjournals/inara -o pdf paper.md
+  artifacts:
+    paths:
+      - docsrc/paper.pdf
+  rules:
+    - if: $CI_COMMIT_BRANCH == "joss"
