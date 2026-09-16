@@ -154,14 +154,18 @@ jobs:
           mv _build/html ../public
 
       - name: Upload documentation artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-pages-artifact@v5
         with:
-          name: documentation
-          path: public/
-          if-no-files-found: ignore
+          path: docsrc/_build/html/
 
+  deploy-docs:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build-docs
+    steps:
       - name: Deploy to GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v5
-        with:
-          artifact_name: documentation
-  
+ 
