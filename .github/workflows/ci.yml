@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       conda_prefix: ${{ steps.setup-env.outputs.prefix }}
+      today: ${{ steps.get-date.outputs.today }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -79,6 +80,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Miniforge
+        uses: conda-incubator/setup-miniconda@v4
+        with:
+          miniforge-version: latest
+          activate-environment: xvamp
+          channel-priority: strict
+          conda-remove-defaults: true
+          use-only-tar-bz2: true
+          auto-activate-base: false
+
+      - name: Restore Conda env
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ env.CONDA }}/envs
+          key: |
+            conda-${{ runner.os }}--${{ runner.arch }}--${{ needs.setup-conda.outputs.today }}--${{ hashFiles('environment.yml') }}
+          restore-keys: |
+            conda-${{ runner.os }}--${{ runner.arch }}--
+
       - name: Activate Conda Environment
         run: |
           eval "$(conda shell.bash hook)"
@@ -100,6 +120,25 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup Miniforge
+        uses: conda-incubator/setup-miniconda@v4
+        with:
+          miniforge-version: latest
+          activate-environment: xvamp
+          channel-priority: strict
+          conda-remove-defaults: true
+          use-only-tar-bz2: true
+          auto-activate-base: false
+
+      - name: Restore Conda env
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ env.CONDA }}/envs
+          key: |
+            conda-${{ runner.os }}--${{ runner.arch }}--${{ needs.setup-conda.outputs.today }}--${{ hashFiles('environment.yml') }}
+          restore-keys: |
+            conda-${{ runner.os }}--${{ runner.arch }}--
 
       - name: Activate Conda Environment
         run: |
