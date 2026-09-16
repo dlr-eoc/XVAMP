@@ -21,3 +21,4 @@ dependencies:
   - graphviz
   - pandoc
   - setuptools-scm
+  - pip
