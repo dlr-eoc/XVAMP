@@ -114,6 +114,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       id-token: write
+      pages: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
