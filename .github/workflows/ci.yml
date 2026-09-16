@@ -43,7 +43,7 @@ jobs:
           channel-priority: strict
           conda-remove-defaults: true
           use-only-tar-bz2: true
-          auto-activate-base: false
+          auto-activate: false
 
       - name: Update environment
         id: update-env
@@ -83,7 +83,7 @@ jobs:
           channel-priority: strict
           conda-remove-defaults: true
           use-only-tar-bz2: true
-          auto-activate-base: false
+          auto-activate: false
 
       - name: Restore Conda env
         uses: actions/cache/restore@v5
@@ -124,7 +124,7 @@ jobs:
           channel-priority: strict
           conda-remove-defaults: true
           use-only-tar-bz2: true
-          auto-activate-base: false
+          auto-activate: false
 
       - name: Restore Conda env
         uses: actions/cache/restore@v5
