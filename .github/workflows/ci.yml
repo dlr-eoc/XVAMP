@@ -151,7 +151,6 @@ jobs:
         run: |
           cd docsrc
           sphinx-build -M html . _build
-          mv _build/html ../public
 
       - name: Upload documentation artifacts
         uses: actions/upload-pages-artifact@v5
@@ -159,6 +158,7 @@ jobs:
           path: docsrc/_build/html/
 
   deploy-docs:
+    name: Deploy Documentation
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
