@@ -112,6 +112,8 @@ jobs:
     needs: setup-conda
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      pages: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
