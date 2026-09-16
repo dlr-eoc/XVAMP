@@ -21,11 +21,19 @@ jobs:
     name: Set up Conda Environment
     runs-on: ubuntu-latest
     outputs:
-      conda_prefix: ${{ steps.setup-env.outputs.prefix }}
+      conda_prefix: ${{ steps.update-env.outputs.conda_prefix }}
       today: ${{ steps.get-date.outputs.today }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Checkout environment definition
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            environment.yml
+          sparse-checkout-cone-mode: false
+
+      - name: Get date
+        id: get-date
+        run: echo "today=$(date -u '+%Y%m%d')" >> $GITHUB_OUTPUT
 
       - name: Setup Miniforge
         uses: conda-incubator/setup-miniconda@v4
@@ -37,40 +45,27 @@ jobs:
           use-only-tar-bz2: true
           auto-activate-base: false
 
-      - name: Get Date
-        id: get-date
-        run: echo "today=$(date -u '+%Y%m%d')" >> $GITHUB_OUTPUT
-
-      - name: Cache conda pkgs
-        id: cache-pkgs
-        uses: actions/cache@v5
-        with:
-          path: ~/conda_pkgs_dir
-          key: ${{ runner.os }}--conda--${{ hashFiles('environment.yml') }}
-          restore-keys: |
-            ${{ runner.os }}--conda--
-
-      - name: Cache Conda env
-        id: cache-env
-        uses: actions/cache@v5
-        with:
-          path: ${{ env.CONDA }}/envs
-          key: |
-            conda-${{ runner.os }}--${{ runner.arch }}--${{ steps.get-date.outputs.today }}--${{ hashFiles('environment.yml') }}
-          restore-keys: |
-            conda-${{ runner.os }}--${{ runner.arch }}--
-
-      - name: Set up environment
-        id: setup-env
+      - name: Update environment
+        id: update-env
         run: |
           mamba env update -n xvamp -f environment.yml
-          echo "prefix=$(conda info --base)/envs/xvamp" >> $GITHUB_OUTPUT
+          echo "conda_prefix=$(conda info --base)/envs/xvamp" >> $GITHUB_OUTPUT
 
       - name: Test conda setup
         run: |
           conda env list
           which python
           python --version
+
+      - name: Cache environment
+        id: cache-env
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.update-env.outputs.conda_prefix }}
+          key: |
+            conda-${{ runner.os }}--${{ runner.arch }}--${{ steps.get-date.outputs.today }}--${{ hashFiles('environment.yml') }}
+          restore-keys: |
+            conda-${{ runner.os }}--${{ runner.arch }}--
 
   test:
     name: Run Tests
@@ -93,7 +88,7 @@ jobs:
       - name: Restore Conda env
         uses: actions/cache/restore@v5
         with:
-          path: ${{ env.CONDA }}/envs
+          path: ${{ needs.setup-conda.outputs.conda_prefix }}
           key: |
             conda-${{ runner.os }}--${{ runner.arch }}--${{ needs.setup-conda.outputs.today }}--${{ hashFiles('environment.yml') }}
           restore-keys: |
@@ -134,7 +129,7 @@ jobs:
       - name: Restore Conda env
         uses: actions/cache/restore@v5
         with:
-          path: ${{ env.CONDA }}/envs
+          path: ${{ needs.setup-conda.outputs.conda_prefix }}
           key: |
             conda-${{ runner.os }}--${{ runner.arch }}--${{ needs.setup-conda.outputs.today }}--${{ hashFiles('environment.yml') }}
           restore-keys: |
