@@ -156,4 +156,9 @@ jobs:
           name: documentation
           path: public/
           if-no-files-found: ignore
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
+        with:
+          artifact_name: documentation
   
